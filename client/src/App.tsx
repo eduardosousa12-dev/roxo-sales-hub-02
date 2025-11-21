@@ -8,6 +8,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Diario from "./pages/Diario";
 import Propostas from "./pages/Propostas";
+import TestSchema from "./pages/TestSchema";
 import MainLayout from "@/components/MainLayout";
 import NotFound from "./pages/NotFound";
 
@@ -45,6 +46,9 @@ const App = () => (
             </Route>
             <Route path="/recebiveis">
               <ProtectedRoute><Dashboard /></ProtectedRoute>
+            </Route>
+            <Route path="/test-schema">
+              <ProtectedRoute><TestSchema /></ProtectedRoute>
             </Route>
             <Route component={NotFound} />
           </Switch>

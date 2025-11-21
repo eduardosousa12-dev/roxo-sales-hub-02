@@ -8,12 +8,13 @@ import { FileCheck, TrendingUp, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface Proposta {
-  id: string;
-  valor: number;
-  status: string;
-  data_envio: string;
-  leads: { nome: string } | null;
-  profiles: { nome_completo: string } | null;
+  id: number;
+  proposal_value: number | null;
+  deal_outcome: string | null;
+  date: string | null;
+  lead: string | null;
+  closer: string | null;
+  sale_date: string | null;
 }
 
 export default function Propostas() {
@@ -27,14 +28,12 @@ export default function Propostas() {
   const loadPropostas = async () => {
     try {
       const { data, error } = await supabase
-        .from("propostas")
-        .select(`
-          *,
-          leads(nome),
-          profiles(nome_completo)
-        `)
-        .eq("status", "Em Aberto")
-        .order("data_envio", { ascending: false });
+        .from("activities")
+        .select("*")
+        .or("proposal_sent.eq.Sim,proposal_sent.eq.Yes")
+        .or("deal_outcome.is.null,deal_outcome.eq.Em Aberto,deal_outcome.eq.Open")
+        .not("proposal_value", "is", null)
+        .order("date", { ascending: false });
 
       if (error) throw error;
       setPropostas(data || []);
@@ -46,13 +45,13 @@ export default function Propostas() {
     }
   };
 
-  const updateStatus = async (id: string, novoStatus: "Ganho" | "Perdido") => {
+  const updateStatus = async (id: number, novoStatus: "Ganho" | "Perdido") => {
     try {
       const { error } = await supabase
-        .from("propostas")
+        .from("activities")
         .update({
-          status: novoStatus,
-          data_fechamento: new Date().toISOString().split("T")[0],
+          deal_outcome: novoStatus,
+          sale_date: new Date().toISOString().split("T")[0],
         })
         .eq("id", id);
 
@@ -120,17 +119,17 @@ export default function Propostas() {
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-xl">
-                      {proposta.leads?.nome || "Lead não identificado"}
+                      {proposta.lead || "Lead não identificado"}
                     </CardTitle>
                     <p className="text-sm text-muted-foreground mt-1">
-                      Closer: {proposta.profiles?.nome_completo || "Não atribuído"}
+                      Closer: {proposta.closer || "Não atribuído"}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Enviada em {formatDate(proposta.data_envio)}
+                      {proposta.date ? `Enviada em ${formatDate(proposta.date)}` : "Data não informada"}
                     </p>
                   </div>
                   <Badge variant="outline" className="border-primary text-primary">
-                    {proposta.status}
+                    {proposta.deal_outcome || "Em Aberto"}
                   </Badge>
                 </div>
               </CardHeader>
@@ -138,7 +137,7 @@ export default function Propostas() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-2xl font-bold text-primary">
-                      {formatCurrency(proposta.valor)}
+                      {formatCurrency(proposta.proposal_value || 0)}
                     </p>
                   </div>
                   <div className="flex gap-2">

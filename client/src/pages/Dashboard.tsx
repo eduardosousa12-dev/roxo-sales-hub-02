@@ -36,38 +36,35 @@ export default function Dashboard() {
     try {
       setLoading(true);
       
-      // Load propostas data
-      const { data: propostas } = await supabase
-        .from("propostas")
+      // Load activities data
+      const { data: activities } = await supabase
+        .from("activities")
         .select("*");
       
-      const propostasGanhas = propostas?.filter(p => p.status === "Ganho") || [];
-      const propostasAbertas = propostas?.filter(p => p.status === "Em Aberto") || [];
-      const propostasPerdidas = propostas?.filter(p => p.status === "Perdido") || [];
+      const activitiesWithSales = activities?.filter(a => a.sale_value && a.sale_value > 0) || [];
+      const activitiesWithProposals = activities?.filter(a => a.proposal_sent === "Sim" || a.proposal_sent === "Yes") || [];
+      const activitiesWon = activities?.filter(a => a.deal_outcome === "Ganho" || a.deal_outcome === "Won") || [];
+      const activitiesLost = activities?.filter(a => a.deal_outcome === "Perdido" || a.deal_outcome === "Lost") || [];
+      const activitiesOpen = activities?.filter(a => !a.deal_outcome || a.deal_outcome === "Em Aberto" || a.deal_outcome === "Open") || [];
       
-      const valorTotalVendido = propostasGanhas.reduce((sum, p) => sum + (p.valor || 0), 0);
-      const valorPropostaAberto = propostasAbertas.reduce((sum, p) => sum + (p.valor || 0), 0);
+      const valorTotalVendido = activitiesWon.reduce((sum, a) => sum + (a.sale_value || 0), 0);
+      const valorPropostaAberto = activitiesOpen.reduce((sum, a) => sum + (a.proposal_value || 0), 0);
       
-      // Load atividades data
-      const { data: atividades } = await supabase
-        .from("atividades")
-        .select("*");
-      
-      const reunioesRealizadas = atividades?.filter(a => a.status_atividade === "Reunião Realizada") || [];
-      const noShow = atividades?.filter(a => a.status_atividade === "No Show") || [];
-      const reagendadas = atividades?.filter(a => a.status_atividade === "Reagendada") || [];
-      const qualificadas = atividades?.filter(a => a.qualificacao === "Qualificado") || [];
-      const desqualificadas = atividades?.filter(a => a.qualificacao === "Não Qualificado") || [];
-      const reunioesResgatadas = atividades?.filter(a => a.reuniao_resgatada === true) || [];
+      const reunioesRealizadas = activities?.filter(a => a.status === "Reunião Realizada" || a.status === "Completed") || [];
+      const noShow = activities?.filter(a => a.status === "No Show") || [];
+      const reagendadas = activities?.filter(a => a.status === "Reagendada" || a.status === "Rescheduled") || [];
+      const qualificadas = activities?.filter(a => a.qualification === "Qualificado" || a.qualification === "Qualified") || [];
+      const desqualificadas = activities?.filter(a => a.qualification === "Não Qualificado" || a.qualification === "Unqualified") || [];
+      const reunioesResgatadas = activities?.filter(a => a.reuniao_resgatada === "Sim" || a.reuniao_resgatada === "Yes") || [];
       
       // Performance por canal
       const canais = ["Inbound", "Outbound", "Webinar", "Vanguarda"];
       const perfCanal = canais.map(canal => {
-        const atvsCanal = atividades?.filter(a => a.canal === canal) || [];
-        const reunioesCanal = atvsCanal.filter(a => a.status_atividade === "Reunião Realizada");
-        const vendasCanal = atvsCanal.filter(a => a.proposta_enviada === true);
-        const noShowCanal = atvsCanal.filter(a => a.status_atividade === "No Show");
-        const valorVendas = vendasCanal.reduce((sum, a) => sum + (a.valor_proposta || 0), 0);
+        const atvsCanal = activities?.filter(a => a.channel === canal) || [];
+        const reunioesCanal = atvsCanal.filter(a => a.status === "Reunião Realizada" || a.status === "Completed");
+        const vendasCanal = atvsCanal.filter(a => a.sale_value && a.sale_value > 0);
+        const noShowCanal = atvsCanal.filter(a => a.status === "No Show");
+        const valorVendas = vendasCanal.reduce((sum, a) => sum + (a.sale_value || 0), 0);
         
         return {
           canal,
@@ -81,23 +78,23 @@ export default function Dashboard() {
       // Etapas de reunião
       const tiposReuniao = ["R1", "R2", "R3", "R4", "R5"];
       const etapas = tiposReuniao.map(tipo => {
-        const count = atividades?.filter(a => a.tipo_reuniao === tipo).length || 0;
+        const count = activities?.filter(a => a.type === tipo).length || 0;
         return { tipo, count };
       });
       
       // Evolução do funil
       const evolucoes = ["R1 > R2", "R2 > R3", "R3 > R4", "R4 > R5"];
       const evol = evolucoes.map(evo => {
-        const count = atividades?.filter(a => a.evolucao_funil === evo).length || 0;
+        const count = activities?.filter(a => a.evolution === evo).length || 0;
         return { evolucao: evo, count };
       });
       
       setMetrics({
         valorTotalVendido,
-        negociosGanhos: propostasGanhas.length,
-        propostasEnviadas: propostas?.length || 0,
-        leadsAtendimento: atividades?.length || 0,
-        totalReunioes: atividades?.length || 0,
+        negociosGanhos: activitiesWon.length,
+        propostasEnviadas: activitiesWithProposals.length,
+        leadsAtendimento: activities?.length || 0,
+        totalReunioes: activities?.length || 0,
         reunioesRealizadas: reunioesRealizadas.length,
         valorPropostaAberto,
         qualificadas: qualificadas.length,
@@ -105,7 +102,7 @@ export default function Dashboard() {
         reagendadas: reagendadas.length,
         noShow: noShow.length,
         reunioesResgatadas: reunioesResgatadas.length,
-        perdidas: propostasPerdidas.length,
+        perdidas: activitiesLost.length,
       });
       
       setPerformanceCanal(perfCanal);

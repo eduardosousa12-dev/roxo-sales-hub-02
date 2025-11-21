@@ -40,46 +40,50 @@ export default function Diario() {
       setLoading(true);
       
       // First, create or get the lead
-      let leadId;
+      let leadName = formData.leadNome;
       const { data: existingLead } = await supabase
         .from("leads")
-        .select("id")
-        .eq("nome", formData.leadNome)
+        .select("id, name")
+        .eq("name", formData.leadNome)
         .single();
       
-      if (existingLead) {
-        leadId = existingLead.id;
-      } else {
+      if (!existingLead) {
         const { data: newLead, error: leadError } = await supabase
           .from("leads")
           .insert({
-            nome: formData.leadNome,
-            faturamento_empresa: formData.faturamentoEmpresa || null,
-            created_by: user?.id,
+            name: formData.leadNome,
+            notes: formData.faturamentoEmpresa ? `Faturamento: ${formData.faturamentoEmpresa}` : null,
           })
-          .select("id")
+          .select("id, name")
           .single();
         
-        if (leadError) throw leadError;
-        leadId = newLead.id;
+        if (leadError) {
+          console.error("Lead creation error:", leadError);
+        }
+        if (newLead) {
+          leadName = newLead.name;
+        }
       }
       
       // Create the activity
       const { error } = await supabase
-        .from("atividades")
+        .from("activities")
         .insert({
+          date: formData.data,
+          closer: user?.email || null,
           closer_id: user?.id,
-          lead_id: leadId,
-          canal: formData.canal,
-          qualificacao: formData.qualificacao,
-          reuniao_resgatada: formData.reuniaoResgatada === "Sim",
-          tipo_reuniao: formData.tipoReuniao,
-          status_atividade: formData.statusAtividade,
-          proposta_enviada: formData.propostaEnviada === "Sim",
-          evolucao_funil: formData.evolucaoFunil,
-          valor_proposta: formData.valorProposta ? parseFloat(formData.valorProposta) : null,
-          observacoes: formData.observacoes || null,
-        } as any);
+          lead: leadName,
+          channel: formData.canal,
+          type: formData.tipoReuniao,
+          status: formData.statusAtividade,
+          qualification: formData.qualificacao,
+          proposal_sent: formData.propostaEnviada,
+          evolution: formData.evolucaoFunil,
+          proposal_value: formData.valorProposta ? parseFloat(formData.valorProposta) : null,
+          notes: formData.observacoes || null,
+          reuniao_resgatada: formData.reuniaoResgatada,
+          company_revenue: formData.faturamentoEmpresa || null,
+        });
       
       if (error) throw error;
       
