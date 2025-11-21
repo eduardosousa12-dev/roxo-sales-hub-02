@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "react-router-dom";
+import { useLocation } from "wouter";
 
 interface AuthContextType {
   user: User | null;
@@ -18,10 +18,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
+  const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
@@ -30,7 +29,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -47,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     
     if (!error) {
-      navigate("/");
+      setLocation("/");
     }
     
     return { error };
@@ -68,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
     
     if (!error) {
-      navigate("/");
+      setLocation("/");
     }
     
     return { error };
@@ -76,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    navigate("/auth");
+    setLocation("/auth");
   };
 
   return (

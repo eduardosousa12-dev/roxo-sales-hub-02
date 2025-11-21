@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation } from "wouter";
 import { LayoutDashboard, FileText, ListChecks, History, DollarSign, LogOut, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -18,7 +18,7 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const { user, signOut } = useAuth();
-  const location = useLocation();
+  const [location] = useLocation();
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -30,41 +30,41 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen">
-      {/* Top Navigation */}
       <nav className="border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
-            {/* Logo */}
-            <Link to="/" className="flex items-center space-x-2">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-glow bg-clip-text text-transparent">
-                Grupo Rugido
-              </h1>
+            <Link href="/">
+              <a className="flex items-center space-x-2">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-glow bg-clip-text text-transparent">
+                  Grupo Rugido
+                </h1>
+              </a>
             </Link>
 
-            {/* Navigation Links */}
             <div className="hidden md:flex items-center space-x-1">
               {navItems.map((item) => {
-                const isActive = location.pathname === item.path;
+                const isActive = location === item.path;
                 const Icon = item.icon;
                 
                 return (
-                  <Link key={item.path} to={item.path}>
-                    <Button
-                      variant={isActive ? "default" : "ghost"}
-                      className={cn(
-                        "gap-2",
-                        isActive && "glow-purple"
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </Button>
+                  <Link key={item.path} href={item.path}>
+                    <a>
+                      <Button
+                        variant={isActive ? "default" : "ghost"}
+                        className={cn(
+                          "gap-2",
+                          isActive && "glow-purple"
+                        )}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.label}
+                      </Button>
+                    </a>
                   </Link>
                 );
               })}
             </div>
 
-            {/* User Menu */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="icon" className="rounded-full glow-purple-hover">
@@ -91,7 +91,6 @@ export default function MainLayout({ children }: MainLayoutProps) {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         {children}
       </main>

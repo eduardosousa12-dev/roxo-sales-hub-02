@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { Router, Route, Switch, Redirect } from "wouter";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -17,7 +17,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-pulse text-primary">Carregando...</div></div>;
-  if (!user) return <Navigate to="/auth" replace />;
+  if (!user) return <Redirect to="/auth" />;
   
   return <MainLayout>{children}</MainLayout>;
 }
@@ -27,19 +27,29 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <Router>
         <AuthProvider>
-          <Routes>
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/diario" element={<ProtectedRoute><Diario /></ProtectedRoute>} />
-            <Route path="/propostas" element={<ProtectedRoute><Propostas /></ProtectedRoute>} />
-            <Route path="/historico" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/recebiveis" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+          <Switch>
+            <Route path="/auth" component={Auth} />
+            <Route path="/">
+              <ProtectedRoute><Dashboard /></ProtectedRoute>
+            </Route>
+            <Route path="/diario">
+              <ProtectedRoute><Diario /></ProtectedRoute>
+            </Route>
+            <Route path="/propostas">
+              <ProtectedRoute><Propostas /></ProtectedRoute>
+            </Route>
+            <Route path="/historico">
+              <ProtectedRoute><Dashboard /></ProtectedRoute>
+            </Route>
+            <Route path="/recebiveis">
+              <ProtectedRoute><Dashboard /></ProtectedRoute>
+            </Route>
+            <Route component={NotFound} />
+          </Switch>
         </AuthProvider>
-      </BrowserRouter>
+      </Router>
     </TooltipProvider>
   </QueryClientProvider>
 );
