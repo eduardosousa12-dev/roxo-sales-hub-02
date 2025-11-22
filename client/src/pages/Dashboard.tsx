@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import MetricCard from "@/components/MetricCard";
+import HorizontalBarChart from "@/components/HorizontalBarChart";
+import PerformanceCard from "@/components/PerformanceCard";
+import RankingCard from "@/components/RankingCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TrendingUp, DollarSign, FileCheck, Users, Calendar } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Profile {
   id: string;
@@ -37,6 +39,7 @@ export default function Dashboard() {
   const [performanceCanal, setPerformanceCanal] = useState<any[]>([]);
   const [etapasReuniao, setEtapasReuniao] = useState<any[]>([]);
   const [evolucaoFunil, setEvolucaoFunil] = useState<any[]>([]);
+  const [ranking, setRanking] = useState<any[]>([]);
 
   useEffect(() => {
     loadProfiles();
@@ -139,6 +142,42 @@ export default function Dashboard() {
         return { evolucao: evo.label, count };
       });
       
+      // Ranking de vendas por closer
+      const closerSales = new Map<string, { nome: string; vendas: number; valor: number }>();
+      
+      activitiesWon.forEach(activity => {
+        const closerId = activity.closer_id;
+        const closerName = activity.closer || "Sem nome";
+        const saleValue = activity.sale_value || 0;
+        
+        if (closerId) {
+          if (closerSales.has(closerId)) {
+            const current = closerSales.get(closerId)!;
+            closerSales.set(closerId, {
+              nome: current.nome,
+              vendas: current.vendas + 1,
+              valor: current.valor + saleValue,
+            });
+          } else {
+            closerSales.set(closerId, {
+              nome: closerName,
+              vendas: 1,
+              valor: saleValue,
+            });
+          }
+        }
+      });
+      
+      const rankingData = Array.from(closerSales.values())
+        .sort((a, b) => b.valor - a.valor)
+        .slice(0, 5)
+        .map((item, index) => ({
+          rank: index + 1,
+          name: item.nome,
+          vendas: item.vendas,
+          valor: item.valor,
+        }));
+
       setMetrics({
         valorTotalVendido,
         negociosGanhos: activitiesWon.length,
@@ -158,6 +197,7 @@ export default function Dashboard() {
       setPerformanceCanal(perfCanal);
       setEtapasReuniao(etapas);
       setEvolucaoFunil(evol);
+      setRanking(rankingData);
       
     } catch (error) {
       console.error("Error loading dashboard:", error);
@@ -311,70 +351,45 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="glass-card border-2 border-primary/10">
-              <CardHeader>
-                <CardTitle>Performance por Canal</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={performanceCanal}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="canal" stroke="#888" />
-                    <YAxis stroke="#888" />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
-                      labelStyle={{ color: '#fff' }}
-                    />
-                    <Bar dataKey="reunioes" fill="hsl(var(--primary))" name="Reuniões" />
-                    <Bar dataKey="vendas" fill="hsl(var(--accent))" name="Vendas" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+          {/* Ranking de Vendas */}
+          <RankingCard data={ranking} />
 
-            <Card className="glass-card border-2 border-primary/10">
-              <CardHeader>
-                <CardTitle>Etapas de Reunião</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={etapasReuniao}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="tipo" stroke="#888" />
-                    <YAxis stroke="#888" />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
-                      labelStyle={{ color: '#fff' }}
-                    />
-                    <Bar dataKey="count" fill="hsl(var(--primary))" name="Quantidade" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+          {/* Performance por Canal */}
+          <div>
+            <h2 className="text-2xl font-bold mb-4">Performance por Canal</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {performanceCanal.map((canal) => (
+                <PerformanceCard
+                  key={canal.canal}
+                  title={canal.canal}
+                  reunioes={canal.reunioes}
+                  vendas={canal.vendas}
+                  noShow={canal.noShow}
+                  valorVendas={canal.valorVendas}
+                />
+              ))}
+            </div>
           </div>
 
-          {/* Funnel Evolution */}
-          <Card className="glass-card border-2 border-primary/10">
-            <CardHeader>
-              <CardTitle>Evolução do Funil</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={evolucaoFunil}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="evolucao" stroke="#888" />
-                  <YAxis stroke="#888" />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
-                    labelStyle={{ color: '#fff' }}
-                  />
-                  <Bar dataKey="count" fill="hsl(var(--accent))" name="Quantidade" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+          {/* Etapas e Evolução */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <HorizontalBarChart
+              title="Etapas de Reunião"
+              data={etapasReuniao.map(e => ({
+                label: e.tipo,
+                value: e.count,
+                color: "bg-gradient-to-r from-primary to-purple-500"
+              }))}
+            />
+            <HorizontalBarChart
+              title="Evolução do Funil"
+              data={evolucaoFunil.map(e => ({
+                label: e.evolucao,
+                value: e.count,
+                color: "bg-gradient-to-r from-accent to-pink-500"
+              }))}
+            />
+          </div>
         </>
       )}
     </div>
