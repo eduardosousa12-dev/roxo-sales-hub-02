@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,11 +10,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { FileText, Plus, Save } from "lucide-react";
 
+interface Profile {
+  id: string;
+  full_name: string | null;
+}
+
 export default function Diario() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [formData, setFormData] = useState({
     data: new Date().toISOString().split("T")[0],
+    closerId: "",
+    closerName: "",
+    bdr: "",
     leadNome: "",
     faturamentoEmpresa: "",
     canal: "Inbound",
@@ -28,8 +37,43 @@ export default function Diario() {
     observacoes: "",
   });
 
+  useEffect(() => {
+    loadProfiles();
+  }, [user]);
+
+  const loadProfiles = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .order("full_name");
+      
+      if (error) throw error;
+      setProfiles(data || []);
+      
+      // Preselect current user if available
+      if (user && data) {
+        const currentUserProfile = data.find(p => p.id === user.id);
+        if (currentUserProfile) {
+          setFormData(prev => ({
+            ...prev,
+            closerId: currentUserProfile.id,
+            closerName: currentUserProfile.full_name || ""
+          }));
+        }
+      }
+    } catch (error) {
+      console.error("Error loading profiles:", error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.closerId) {
+      toast.error("Selecione um closer");
+      return;
+    }
     
     if (!formData.leadNome) {
       toast.error("Preencha o nome do lead/empresa");
@@ -70,8 +114,9 @@ export default function Diario() {
         .from("activities")
         .insert({
           date: formData.data,
-          closer: user?.email || null,
-          closer_id: user?.id,
+          closer: formData.closerName || null,
+          closer_id: formData.closerId || null,
+          bdr: formData.bdr || null,
           lead: leadName,
           channel: formData.canal,
           type: formData.tipoReuniao,
@@ -89,9 +134,13 @@ export default function Diario() {
       
       toast.success("Lançamento salvo com sucesso!");
       
-      // Reset form
+      // Reset form and reapply current user selection
+      const currentUserProfile = profiles.find(p => p.id === user?.id);
       setFormData({
         data: new Date().toISOString().split("T")[0],
+        closerId: currentUserProfile?.id || "",
+        closerName: currentUserProfile?.full_name || "",
+        bdr: "",
         leadNome: "",
         faturamentoEmpresa: "",
         canal: "Inbound",
@@ -141,6 +190,45 @@ export default function Diario() {
                   value={formData.data}
                   onChange={(e) => setFormData({ ...formData, data: e.target.value })}
                   className="border-primary/20"
+                  data-testid="input-date"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="closer">Closer *</Label>
+                <Select 
+                  value={formData.closerId} 
+                  onValueChange={(value) => {
+                    const selected = profiles.find(p => p.id === value);
+                    setFormData({ 
+                      ...formData, 
+                      closerId: value,
+                      closerName: selected?.full_name || ""
+                    });
+                  }}
+                >
+                  <SelectTrigger className="border-primary/20" data-testid="select-closer">
+                    <SelectValue placeholder="Selecione o closer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {profiles.map(profile => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.full_name || "Sem nome"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="bdr">BDR</Label>
+                <Input
+                  id="bdr"
+                  placeholder="Nome do BDR"
+                  value={formData.bdr}
+                  onChange={(e) => setFormData({ ...formData, bdr: e.target.value })}
+                  className="border-primary/20"
+                  data-testid="input-bdr"
                 />
               </div>
 
@@ -152,6 +240,7 @@ export default function Diario() {
                   value={formData.leadNome}
                   onChange={(e) => setFormData({ ...formData, leadNome: e.target.value })}
                   className="border-primary/20"
+                  data-testid="input-lead"
                 />
               </div>
 
@@ -212,7 +301,7 @@ export default function Diario() {
               <div className="space-y-2">
                 <Label htmlFor="tipoReuniao">Tipo de Reunião</Label>
                 <Select value={formData.tipoReuniao} onValueChange={(value) => setFormData({ ...formData, tipoReuniao: value })}>
-                  <SelectTrigger className="border-primary/20">
+                  <SelectTrigger className="border-primary/20" data-testid="select-meeting-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -221,9 +310,6 @@ export default function Diario() {
                     <SelectItem value="R3">R3</SelectItem>
                     <SelectItem value="R4">R4</SelectItem>
                     <SelectItem value="R5">R5</SelectItem>
-                    <SelectItem value="-Sa">-Sa</SelectItem>
-                    <SelectItem value="acima de 750k">acima de 750k</SelectItem>
-                    <SelectItem value="150k a 750k">150k a 750k</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
