@@ -5,9 +5,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Calendar } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Calendar, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+}
 
 interface Activity {
   id: number;
@@ -27,13 +33,47 @@ interface Activity {
 
 export default function Historico() {
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Search and filters
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchLead, setSearchLead] = useState("");
+  const [searchCloser, setSearchCloser] = useState("");
+  const [searchBdr, setSearchBdr] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [channelFilter, setChannelFilter] = useState("todos");
+  const [periodFilter, setPeriodFilter] = useState("todos");
+  const [closerFilter, setCloserFilter] = useState("todos");
+  const [bdrFilter, setBdrFilter] = useState("todos");
+  const [qualificationFilter, setQualificationFilter] = useState("todos");
+  const [outcomeFilter, setOutcomeFilter] = useState("todos");
+  
+  // Meeting type checkboxes (R1-R5)
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(["R1", "R2", "R3", "R4", "R5"]);
 
   useEffect(() => {
+    loadProfiles();
     loadActivities();
   }, []);
+
+  const loadProfiles = async () => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .order("full_name");
+      setProfiles(data || []);
+    } catch (error) {
+      console.error("Error loading profiles:", error);
+    }
+  };
+
+  const toggleType = (type: string) => {
+    setSelectedTypes(prev =>
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    );
+  };
 
   const loadActivities = async () => {
     try {
@@ -131,16 +171,66 @@ export default function Historico() {
     return { value: example?.status || normalized, normalized };
   });
 
+  // Get unique values for dropdowns
+  const uniqueChannels = Array.from(new Set(activities.map(a => a.channel).filter(Boolean)));
+  const uniqueBdrs = Array.from(new Set(activities.map(a => a.bdr).filter(Boolean)));
+  const uniqueQualifications = Array.from(new Set(activities.map(a => a.qualification).filter(Boolean)));
+  const uniqueOutcomes = Array.from(new Set(activities.map(a => a.deal_outcome).filter(Boolean)));
+
   const filteredActivities = activities.filter(activity => {
-    const matchesSearch = !searchTerm || 
+    // General search
+    const matchesGeneralSearch = !searchTerm || 
       activity.lead?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       activity.closer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       activity.bdr?.toLowerCase().includes(searchTerm.toLowerCase());
     
+    // Specific searches
+    const matchesLeadSearch = !searchLead || 
+      activity.lead?.toLowerCase().includes(searchLead.toLowerCase());
+    
+    const matchesCloserSearch = !searchCloser || 
+      activity.closer?.toLowerCase().includes(searchCloser.toLowerCase());
+    
+    const matchesBdrSearch = !searchBdr || 
+      activity.bdr?.toLowerCase().includes(searchBdr.toLowerCase());
+    
+    // Dropdown filters
     const matchesStatus = statusFilter === "todos" || 
       normalizeStatus(activity.status) === normalizeStatus(statusFilter);
     
-    return matchesSearch && matchesStatus;
+    const matchesChannel = channelFilter === "todos" || 
+      activity.channel === channelFilter;
+    
+    const matchesCloser = closerFilter === "todos" || 
+      activity.closer === closerFilter;
+    
+    const matchesBdr = bdrFilter === "todos" || 
+      activity.bdr === bdrFilter;
+    
+    const matchesQualification = qualificationFilter === "todos" || 
+      (activity.qualification?.toLowerCase().includes(qualificationFilter.toLowerCase()));
+    
+    const matchesOutcome = outcomeFilter === "todos" || 
+      (activity.deal_outcome && normalizeOutcome(activity.deal_outcome) === normalizeOutcome(outcomeFilter));
+    
+    // Meeting type checkboxes (R1-R5)
+    // If type is R1-R5, check if it's selected. Otherwise, always show it.
+    const matchesType = !activity.type || 
+      !["R1", "R2", "R3", "R4", "R5"].includes(activity.type) || 
+      selectedTypes.includes(activity.type);
+    
+    // Period filter
+    const matchesPeriod = periodFilter === "todos" || (() => {
+      if (!activity.date) return false;
+      const daysAgo = parseInt(periodFilter);
+      const dateFrom = new Date();
+      dateFrom.setDate(dateFrom.getDate() - daysAgo);
+      return new Date(activity.date) >= dateFrom;
+    })();
+    
+    return matchesGeneralSearch && matchesLeadSearch && matchesCloserSearch && 
+           matchesBdrSearch && matchesStatus && matchesChannel && matchesCloser &&
+           matchesBdr && matchesQualification && matchesOutcome && matchesType && matchesPeriod;
   });
 
   return (
@@ -153,33 +243,165 @@ export default function Historico() {
         <p className="text-muted-foreground">Visualize todas as atividades e reuniões realizadas</p>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por lead, closer ou BDR..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 border-primary/20"
-            data-testid="input-search-historico"
-          />
-        </div>
-        
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-status-historico">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Status</SelectItem>
-            {statusOptions.map(opt => (
-              <SelectItem key={opt.normalized} value={opt.value}>
-                {opt.value} {opt.normalized !== opt.value.toLowerCase() && `(${opt.normalized})`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Extensive Filter Panel */}
+      <Card className="glass-card border-2 border-primary/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Filter className="w-5 h-5" />
+            Filtros Avançados
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* General Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Busca geral (lead, closer ou BDR)..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 border-primary/20"
+              data-testid="input-search-general"
+            />
+          </div>
+
+          {/* Specific Searches */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input
+              placeholder="Buscar por Lead..."
+              value={searchLead}
+              onChange={(e) => setSearchLead(e.target.value)}
+              className="border-primary/20"
+              data-testid="input-search-lead"
+            />
+            <Input
+              placeholder="Buscar por Closer..."
+              value={searchCloser}
+              onChange={(e) => setSearchCloser(e.target.value)}
+              className="border-primary/20"
+              data-testid="input-search-closer"
+            />
+            <Input
+              placeholder="Buscar por BDR..."
+              value={searchBdr}
+              onChange={(e) => setSearchBdr(e.target.value)}
+              className="border-primary/20"
+              data-testid="input-search-bdr"
+            />
+          </div>
+
+          {/* Meeting Type Checkboxes (R1-R5) */}
+          <div>
+            <label className="text-sm font-medium mb-3 block">Tipos de Reunião</label>
+            <div className="flex gap-6 flex-wrap">
+              {["R1", "R2", "R3", "R4", "R5"].map(type => (
+                <div key={type} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`checkbox-${type}`}
+                    checked={selectedTypes.includes(type)}
+                    onCheckedChange={() => toggleType(type)}
+                    data-testid={`checkbox-type-${type.toLowerCase()}`}
+                  />
+                  <label
+                    htmlFor={`checkbox-${type}`}
+                    className="text-sm font-medium cursor-pointer"
+                  >
+                    {type}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Dropdown Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <Select value={channelFilter} onValueChange={setChannelFilter}>
+              <SelectTrigger className="border-primary/20" data-testid="select-channel">
+                <SelectValue placeholder="Canal" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Canais</SelectItem>
+                {uniqueChannels.map(channel => (
+                  <SelectItem key={channel} value={channel}>{channel}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={periodFilter} onValueChange={setPeriodFilter}>
+              <SelectTrigger className="border-primary/20" data-testid="select-period">
+                <SelectValue placeholder="Período" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todo o período</SelectItem>
+                <SelectItem value="7">Últimos 7 dias</SelectItem>
+                <SelectItem value="30">Últimos 30 dias</SelectItem>
+                <SelectItem value="90">Últimos 90 dias</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select value={closerFilter} onValueChange={setCloserFilter}>
+              <SelectTrigger className="border-primary/20" data-testid="select-closer-filter">
+                <SelectValue placeholder="Closer" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Closers</SelectItem>
+                {profiles.map(profile => (
+                  <SelectItem key={profile.id} value={profile.full_name || ""}>
+                    {profile.full_name || "Sem nome"}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={bdrFilter} onValueChange={setBdrFilter}>
+              <SelectTrigger className="border-primary/20" data-testid="select-bdr-filter">
+                <SelectValue placeholder="BDR" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os BDRs</SelectItem>
+                {uniqueBdrs.map(bdr => (
+                  <SelectItem key={bdr} value={bdr}>{bdr}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="border-primary/20" data-testid="select-status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Status</SelectItem>
+                {statusOptions.map(opt => (
+                  <SelectItem key={opt.normalized} value={opt.value}>{opt.value}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={qualificationFilter} onValueChange={setQualificationFilter}>
+              <SelectTrigger className="border-primary/20" data-testid="select-qualification">
+                <SelectValue placeholder="Qualificação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas</SelectItem>
+                {uniqueQualifications.map(qual => (
+                  <SelectItem key={qual} value={qual}>{qual}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={outcomeFilter} onValueChange={setOutcomeFilter}>
+              <SelectTrigger className="border-primary/20" data-testid="select-outcome">
+                <SelectValue placeholder="Resultado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                {uniqueOutcomes.map(outcome => (
+                  <SelectItem key={outcome} value={outcome}>{outcome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Activities Table */}
       <Card className="glass-card border-2 border-primary/10">

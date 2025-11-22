@@ -21,7 +21,6 @@ interface Payment {
   valor_pago: number | null;
   data_pagamento: string | null;
   meio_pagamento: string | null;
-  status: string | null;
   created_at: string | null;
   activities?: {
     lead: string | null;
@@ -102,26 +101,16 @@ export default function Recebiveis() {
         query = query.gte("data_pagamento", dateFrom.toISOString().split('T')[0]);
       }
 
-      // Filter by status
-      if (selectedStatus !== "todos") {
-        // Normalize bilingual status values
-        if (selectedStatus === "pago") {
-          query = query.or("status.eq.Pago,status.eq.Paid");
-        } else if (selectedStatus === "pendente") {
-          query = query.or("status.eq.Pendente,status.eq.Pending,status.is.null");
-        } else if (selectedStatus === "atrasado") {
-          query = query.or("status.eq.Atrasado,status.eq.Overdue");
-        }
-      }
-
       query = query.order("data_pagamento", { ascending: false });
 
       const { data, error } = await query;
 
       if (error) throw error;
       
-      // Apply sale period filter in frontend if needed
+      // Apply filters in frontend
       let filteredData = data || [];
+      
+      // Sale period filter
       if (salePeriod !== "todos") {
         const daysAgo = parseInt(salePeriod);
         const dateFrom = new Date();
@@ -129,6 +118,14 @@ export default function Recebiveis() {
         filteredData = filteredData.filter(p => {
           if (!p.activities?.date) return false;
           return new Date(p.activities.date) >= dateFrom;
+        });
+      }
+      
+      // Status filter (derived from data)
+      if (selectedStatus !== "todos") {
+        filteredData = filteredData.filter(p => {
+          const derivedStatus = p.data_pagamento ? "pago" : "pendente";
+          return derivedStatus === selectedStatus;
         });
       }
       
@@ -264,7 +261,6 @@ export default function Recebiveis() {
             <SelectItem value="todos">Todos os Status</SelectItem>
             <SelectItem value="pago">Pago</SelectItem>
             <SelectItem value="pendente">Pendente</SelectItem>
-            <SelectItem value="atrasado">Atrasado</SelectItem>
           </SelectContent>
         </Select>
       </div>
