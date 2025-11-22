@@ -4,10 +4,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DollarSign, Calendar, CreditCard } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import MetricCard from "@/components/MetricCard";
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+}
 
 interface Payment {
   id: number;
@@ -15,40 +21,118 @@ interface Payment {
   valor_pago: number | null;
   data_pagamento: string | null;
   meio_pagamento: string | null;
+  status: string | null;
   created_at: string | null;
   activities?: {
     lead: string | null;
     closer: string | null;
+    closer_id: string | null;
     sale_value: number | null;
+    date: string | null;
   } | null;
 }
 
 export default function Recebiveis() {
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  
+  // Filters
+  const [selectedCloser, setSelectedCloser] = useState("todos");
+  const [salePeriod, setSalePeriod] = useState("todos");
+  const [paymentPeriod, setPaymentPeriod] = useState("todos");
+  const [selectedStatus, setSelectedStatus] = useState("todos");
+
+  useEffect(() => {
+    loadProfiles();
+  }, []);
 
   useEffect(() => {
     loadPayments();
-  }, []);
+  }, [selectedCloser, salePeriod, paymentPeriod, selectedStatus]);
+
+  const loadProfiles = async () => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .order("full_name");
+      setProfiles(data || []);
+    } catch (error) {
+      console.error("Error loading profiles:", error);
+    }
+  };
 
   const loadPayments = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let query = supabase
         .from("payments")
         .select(`
           *,
           activities!payments_activity_id_fkey(
             lead,
             closer,
-            sale_value
+            closer_id,
+            sale_value,
+            date
           )
-        `)
-        .order("data_pagamento", { ascending: false });
+        `);
+
+      // Filter by closer
+      if (selectedCloser !== "todos") {
+        query = query.eq("activities.closer_id", selectedCloser);
+      }
+
+      // Filter by sale period (from activity date)
+      if (salePeriod !== "todos") {
+        const daysAgo = parseInt(salePeriod);
+        const dateFrom = new Date();
+        dateFrom.setDate(dateFrom.getDate() - daysAgo);
+        // Note: We can't directly filter on joined table dates in Supabase
+        // We'll apply this filter in the frontend
+      }
+
+      // Filter by payment period
+      if (paymentPeriod !== "todos") {
+        const daysAgo = parseInt(paymentPeriod);
+        const dateFrom = new Date();
+        dateFrom.setDate(dateFrom.getDate() - daysAgo);
+        query = query.gte("data_pagamento", dateFrom.toISOString().split('T')[0]);
+      }
+
+      // Filter by status
+      if (selectedStatus !== "todos") {
+        // Normalize bilingual status values
+        if (selectedStatus === "pago") {
+          query = query.or("status.eq.Pago,status.eq.Paid");
+        } else if (selectedStatus === "pendente") {
+          query = query.or("status.eq.Pendente,status.eq.Pending,status.is.null");
+        } else if (selectedStatus === "atrasado") {
+          query = query.or("status.eq.Atrasado,status.eq.Overdue");
+        }
+      }
+
+      query = query.order("data_pagamento", { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) throw error;
-      setPayments(data || []);
+      
+      // Apply sale period filter in frontend if needed
+      let filteredData = data || [];
+      if (salePeriod !== "todos") {
+        const daysAgo = parseInt(salePeriod);
+        const dateFrom = new Date();
+        dateFrom.setDate(dateFrom.getDate() - daysAgo);
+        filteredData = filteredData.filter(p => {
+          if (!p.activities?.date) return false;
+          return new Date(p.activities.date) >= dateFrom;
+        });
+      }
+      
+      setPayments(filteredData);
     } catch (error) {
       console.error("Error loading payments:", error);
     } finally {
@@ -130,6 +214,59 @@ export default function Recebiveis() {
           value={formatCurrency(ticketMedio)}
           icon={DollarSign}
         />
+      </div>
+
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Select value={selectedCloser} onValueChange={setSelectedCloser}>
+          <SelectTrigger className="border-primary/20" data-testid="select-closer">
+            <SelectValue placeholder="Closer" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os Closers</SelectItem>
+            {profiles.map((profile) => (
+              <SelectItem key={profile.id} value={profile.id}>
+                {profile.full_name || "Sem nome"}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={salePeriod} onValueChange={setSalePeriod}>
+          <SelectTrigger className="border-primary/20" data-testid="select-sale-period">
+            <SelectValue placeholder="Período de Venda" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todo o período</SelectItem>
+            <SelectItem value="7">Últimos 7 dias</SelectItem>
+            <SelectItem value="30">Últimos 30 dias</SelectItem>
+            <SelectItem value="90">Últimos 90 dias</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={paymentPeriod} onValueChange={setPaymentPeriod}>
+          <SelectTrigger className="border-primary/20" data-testid="select-payment-period">
+            <SelectValue placeholder="Período de Pagamento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todo o período</SelectItem>
+            <SelectItem value="7">Últimos 7 dias</SelectItem>
+            <SelectItem value="30">Últimos 30 dias</SelectItem>
+            <SelectItem value="90">Últimos 90 dias</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+          <SelectTrigger className="border-primary/20" data-testid="select-status">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os Status</SelectItem>
+            <SelectItem value="pago">Pago</SelectItem>
+            <SelectItem value="pendente">Pendente</SelectItem>
+            <SelectItem value="atrasado">Atrasado</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Search */}
