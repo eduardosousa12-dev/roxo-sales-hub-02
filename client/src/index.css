@@ -67,7 +67,7 @@ All colors MUST be HSL.
     --secondary-foreground: 0 0% 100%;
     
     --muted: 266 30% 20%;
-    --muted-foreground: 0 0% 70%;
+    --muted-foreground: 0 0% 85%;
     
     --accent: 280 100% 60%;
     --accent-foreground: 0 0% 100%;
@@ -85,13 +85,13 @@ All colors MUST be HSL.
     --purple-darker: 266 50% 10%;
     --purple-glow: 280 100% 70%;
     
-    --sidebar-background: 266 50% 8%;
+    --sidebar-background: 266 45% 10%;
     --sidebar-foreground: 0 0% 95%;
     --sidebar-primary: 266 100% 65%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 266 40% 18%;
+    --sidebar-accent: 266 35% 22%;
     --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 266 30% 20%;
+    --sidebar-border: 266 25% 25%;
     --sidebar-ring: 266 100% 65%;
   }
 }

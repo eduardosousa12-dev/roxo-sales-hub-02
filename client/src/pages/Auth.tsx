@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +11,7 @@ import { Loader2 } from "lucide-react";
 
 export default function Auth() {
   const { signIn, signUp } = useAuth();
+  const [, setLocation] = useLocation();
   const [loading, setLoading] = useState(false);
   
   // Login form
@@ -34,11 +36,11 @@ export default function Auth() {
     
     if (error) {
       toast.error(error.message || "Erro ao fazer login");
+      setLoading(false);
     } else {
       toast.success("Login realizado com sucesso!");
+      setLocation("/");
     }
-    
-    setLoading(false);
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -59,11 +61,11 @@ export default function Auth() {
     
     if (error) {
       toast.error(error.message || "Erro ao criar conta");
+      setLoading(false);
     } else {
       toast.success("Conta criada com sucesso!");
+      setLocation("/");
     }
-    
-    setLoading(false);
   };
 
   return (

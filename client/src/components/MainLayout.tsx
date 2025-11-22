@@ -33,12 +33,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
       <nav className="border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
-            <Link href="/">
-              <a className="flex items-center space-x-2">
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-glow bg-clip-text text-transparent">
-                  Grupo Rugido
-                </h1>
-              </a>
+            <Link href="/" className="flex items-center space-x-2">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-purple-glow bg-clip-text text-transparent">
+                Grupo Rugido
+              </h1>
             </Link>
 
             <div className="hidden md:flex items-center space-x-1">
@@ -48,18 +46,16 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 
                 return (
                   <Link key={item.path} href={item.path}>
-                    <a>
-                      <Button
-                        variant={isActive ? "default" : "ghost"}
-                        className={cn(
-                          "gap-2",
-                          isActive && "glow-purple"
-                        )}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                      </Button>
-                    </a>
+                    <Button
+                      variant={isActive ? "default" : "ghost"}
+                      className={cn(
+                        "gap-2",
+                        isActive && "glow-purple"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {item.label}
+                    </Button>
                   </Link>
                 );
               })}

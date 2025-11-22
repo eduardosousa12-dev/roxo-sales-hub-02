@@ -6,8 +6,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TrendingUp, DollarSign, FileCheck, Users, Calendar } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
+interface Profile {
+  id: string;
+  full_name: string | null;
+}
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string>("todos");
+  const [selectedChannel, setSelectedChannel] = useState<string>("todos");
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("todos");
+  
   const [metrics, setMetrics] = useState({
     valorTotalVendido: 0,
     negociosGanhos: 0,
@@ -29,19 +39,54 @@ export default function Dashboard() {
   const [evolucaoFunil, setEvolucaoFunil] = useState<any[]>([]);
 
   useEffect(() => {
-    loadDashboardData();
+    loadProfiles();
   }, []);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [selectedUser, selectedChannel, selectedPeriod]);
+
+  const loadProfiles = async () => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("is_active", true)
+        .order("full_name");
+      
+      setProfiles(data || []);
+    } catch (error) {
+      console.error("Error loading profiles:", error);
+    }
+  };
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
       
-      // Load activities data
-      const { data: activities } = await supabase
-        .from("activities")
-        .select("*");
+      // Build query with filters
+      let query = supabase.from("activities").select("*");
       
-      const activitiesWithSales = activities?.filter(a => a.sale_value && a.sale_value > 0) || [];
+      // Filter by user
+      if (selectedUser !== "todos") {
+        query = query.eq("closer_id", selectedUser);
+      }
+      
+      // Filter by channel
+      if (selectedChannel !== "todos") {
+        query = query.eq("channel", selectedChannel);
+      }
+      
+      // Filter by period
+      if (selectedPeriod !== "todos") {
+        const daysAgo = parseInt(selectedPeriod);
+        const dateFrom = new Date();
+        dateFrom.setDate(dateFrom.getDate() - daysAgo);
+        query = query.gte("date", dateFrom.toISOString().split('T')[0]);
+      }
+      
+      const { data: activities } = await query;
+      
       const activitiesWithProposals = activities?.filter(a => a.proposal_sent === "Sim" || a.proposal_sent === "Yes") || [];
       const activitiesWon = activities?.filter(a => a.deal_outcome === "Ganho" || a.deal_outcome === "Won") || [];
       const activitiesLost = activities?.filter(a => a.deal_outcome === "Perdido" || a.deal_outcome === "Lost") || [];
@@ -83,10 +128,15 @@ export default function Dashboard() {
       });
       
       // Evolução do funil
-      const evolucoes = ["R1 > R2", "R2 > R3", "R3 > R4", "R4 > R5"];
+      const evolucoes = [
+        { pt: "De R1 para R2", en: "R1 > R2", label: "R1 → R2" },
+        { pt: "De R2 para R3", en: "R2 > R3", label: "R2 → R3" },
+        { pt: "De R3 para R4", en: "R3 > R4", label: "R3 → R4" },
+        { pt: "De R4 para R5", en: "R4 > R5", label: "R4 → R5" },
+      ];
       const evol = evolucoes.map(evo => {
-        const count = activities?.filter(a => a.evolution === evo).length || 0;
-        return { evolucao: evo, count };
+        const count = activities?.filter(a => a.evolution === evo.pt || a.evolution === evo.en).length || 0;
+        return { evolucao: evo.label, count };
       });
       
       setMetrics({
@@ -135,170 +185,198 @@ export default function Dashboard() {
 
       {/* Filters */}
       <div className="flex gap-4 flex-wrap">
-        <Select defaultValue="todos-usuarios">
-          <SelectTrigger className="w-[200px] border-primary/20">
+        <Select value={selectedUser} onValueChange={setSelectedUser}>
+          <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-user">
             <SelectValue placeholder="Closer" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos-usuarios">Todos os Usuários</SelectItem>
+            <SelectItem value="todos">Todos os Usuários</SelectItem>
+            {profiles.map((profile) => (
+              <SelectItem key={profile.id} value={profile.id}>
+                {profile.full_name || "Sem nome"}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         
-        <Select defaultValue="todos-canais">
-          <SelectTrigger className="w-[200px] border-primary/20">
+        <Select value={selectedChannel} onValueChange={setSelectedChannel}>
+          <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-channel">
             <SelectValue placeholder="Canal" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="todos-canais">Todos os Canais</SelectItem>
-            <SelectItem value="inbound">Inbound</SelectItem>
-            <SelectItem value="outbound">Outbound</SelectItem>
-            <SelectItem value="webinar">Webinar</SelectItem>
-            <SelectItem value="vanguarda">Vanguarda</SelectItem>
+            <SelectItem value="todos">Todos os Canais</SelectItem>
+            <SelectItem value="Inbound">Inbound</SelectItem>
+            <SelectItem value="Outbound">Outbound</SelectItem>
+            <SelectItem value="Webinar">Webinar</SelectItem>
+            <SelectItem value="Vanguarda">Vanguarda</SelectItem>
           </SelectContent>
         </Select>
         
-        <Select defaultValue="7-dias">
-          <SelectTrigger className="w-[200px] border-primary/20">
+        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+          <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-period">
             <SelectValue placeholder="Período" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="7-dias">Últimos 7 dias</SelectItem>
-            <SelectItem value="30-dias">Últimos 30 dias</SelectItem>
-            <SelectItem value="90-dias">Últimos 90 dias</SelectItem>
+            <SelectItem value="7">Últimos 7 dias</SelectItem>
+            <SelectItem value="30">Últimos 30 dias</SelectItem>
+            <SelectItem value="90">Últimos 90 dias</SelectItem>
+            <SelectItem value="todos">Todo o período</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      {/* Main Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard
-          title="Valor Total Vendido"
-          value={formatCurrency(metrics.valorTotalVendido)}
-          icon={DollarSign}
-          className="md:col-span-1"
-        />
-        <MetricCard
-          title="Negócios Ganhos"
-          value={metrics.negociosGanhos}
-          icon={TrendingUp}
-        />
-        <MetricCard
-          title="Propostas Enviadas"
-          value={metrics.propostasEnviadas}
-          icon={FileCheck}
-        />
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-pulse text-primary text-xl">Carregando métricas...</div>
+        </div>
+      ) : (
+        <>
+          {/* Main Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <MetricCard
+              title="Valor Total Vendido"
+              value={formatCurrency(metrics.valorTotalVendido)}
+              icon={DollarSign}
+            />
+            <MetricCard
+              title="Negócios Ganhos"
+              value={metrics.negociosGanhos}
+              icon={TrendingUp}
+            />
+            <MetricCard
+              title="Propostas Enviadas"
+              value={metrics.propostasEnviadas}
+              icon={FileCheck}
+            />
+          </div>
 
-      {/* Secondary Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <MetricCard title="Leads em Atendimento" value={metrics.leadsAtendimento} />
-        <MetricCard title="Total de Reuniões" value={metrics.totalReunioes} />
-        <MetricCard title="Reuniões Realizadas" value={metrics.reunioesRealizadas} />
-        <MetricCard title="Valor Proposta em Aberto" value={formatCurrency(metrics.valorPropostaAberto)} />
-        <MetricCard title="Qualificadas" value={metrics.qualificadas} />
-        <MetricCard title="Desqualificadas" value={metrics.desqualificadas} />
-        <MetricCard title="Reagendadas" value={metrics.reagendadas} />
-      </div>
-      
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard title="No Show" value={metrics.noShow} />
-        <MetricCard title="Reuniões Resgatadas" value={metrics.reunioesResgatadas} />
-        <MetricCard title="Perdidas" value={metrics.perdidas} />
-      </div>
+          {/* Secondary Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <MetricCard
+              title="Leads em Atendimento"
+              value={metrics.leadsAtendimento}
+              icon={Users}
+            />
+            <MetricCard
+              title="Total de Reuniões"
+              value={metrics.totalReunioes}
+              icon={Calendar}
+            />
+            <MetricCard
+              title="Reuniões Realizadas"
+              value={metrics.reunioesRealizadas}
+              icon={Calendar}
+            />
+            <MetricCard
+              title="Valor Proposta em Aberto"
+              value={formatCurrency(metrics.valorPropostaAberto)}
+              icon={DollarSign}
+            />
+          </div>
 
-      {/* Performance por Canal */}
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Performance por Canal
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {performanceCanal.map((canal) => (
-              <div key={canal.canal} className="space-y-2">
-                <h3 className="font-semibold text-primary">{canal.canal}</h3>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Reuniões:</span>
-                    <span className="font-medium">{canal.reunioes}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Vendas:</span>
-                    <span className="font-medium">{canal.vendas}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">No Show:</span>
-                    <span className="font-medium">{canal.noShow}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Valor Vendas:</span>
-                    <span className="font-medium text-primary">{formatCurrency(canal.valorVendas)}</span>
-                  </div>
+          {/* Status Metrics */}
+          <Card className="glass-card border-2 border-primary/10">
+            <CardHeader>
+              <CardTitle className="text-xl">Status das Reuniões</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 rounded-lg bg-card/50">
+                  <div className="text-3xl font-bold text-green-400">{metrics.qualificadas}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Qualificadas</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-card/50">
+                  <div className="text-3xl font-bold text-red-400">{metrics.desqualificadas}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Desqualificadas</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-card/50">
+                  <div className="text-3xl font-bold text-yellow-400">{metrics.reagendadas}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Reagendadas</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-card/50">
+                  <div className="text-3xl font-bold text-orange-400">{metrics.noShow}</div>
+                  <div className="text-sm text-muted-foreground mt-1">No Show</div>
                 </div>
               </div>
-            ))}
+              <div className="grid grid-cols-2 gap-4 mt-4">
+                <div className="text-center p-4 rounded-lg bg-card/50">
+                  <div className="text-3xl font-bold text-blue-400">{metrics.reunioesResgatadas}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Reuniões Resgatadas</div>
+                </div>
+                <div className="text-center p-4 rounded-lg bg-card/50">
+                  <div className="text-3xl font-bold text-red-400">{metrics.perdidas}</div>
+                  <div className="text-sm text-muted-foreground mt-1">Perdidas</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="glass-card border-2 border-primary/10">
+              <CardHeader>
+                <CardTitle>Performance por Canal</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={performanceCanal}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="canal" stroke="#888" />
+                    <YAxis stroke="#888" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
+                      labelStyle={{ color: '#fff' }}
+                    />
+                    <Bar dataKey="reunioes" fill="hsl(var(--primary))" name="Reuniões" />
+                    <Bar dataKey="vendas" fill="hsl(var(--accent))" name="Vendas" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+
+            <Card className="glass-card border-2 border-primary/10">
+              <CardHeader>
+                <CardTitle>Etapas de Reunião</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={etapasReuniao}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="tipo" stroke="#888" />
+                    <YAxis stroke="#888" />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
+                      labelStyle={{ color: '#fff' }}
+                    />
+                    <Bar dataKey="count" fill="hsl(var(--primary))" name="Quantidade" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Etapas de Reunião */}
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Etapas de Reunião
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={etapasReuniao}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="tipo" stroke="hsl(var(--foreground))" />
-                <YAxis stroke="hsl(var(--foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Evolução do Funil */}
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Evolução do Funil
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={evolucaoFunil}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="evolucao" stroke="hsl(var(--foreground))" />
-                <YAxis stroke="hsl(var(--foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                  }}
-                />
-                <Bar dataKey="count" fill="hsl(var(--purple-glow))" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
+          {/* Funnel Evolution */}
+          <Card className="glass-card border-2 border-primary/10">
+            <CardHeader>
+              <CardTitle>Evolução do Funil</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={evolucaoFunil}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                  <XAxis dataKey="evolucao" stroke="#888" />
+                  <YAxis stroke="#888" />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333' }}
+                    labelStyle={{ color: '#fff' }}
+                  />
+                  <Bar dataKey="count" fill="hsl(var(--accent))" name="Quantidade" />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
