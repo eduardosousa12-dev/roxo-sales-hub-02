@@ -46,7 +46,7 @@ export default function RankingCard({ data }: RankingCardProps) {
               data-testid={`row-ranking-${item.rank}`}
             >
               <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold text-muted-foreground w-8" data-testid={`rank-number-${item.rank}`}>
+                <span className="text-2xl font-bold text-foreground/90 w-8" data-testid={`rank-number-${item.rank}`}>
                   #{item.rank}
                 </span>
                 <Avatar className="h-10 w-10" data-testid={`avatar-ranking-${item.rank}`}>
@@ -55,14 +55,14 @@ export default function RankingCard({ data }: RankingCardProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="font-semibold" data-testid={`name-ranking-${item.rank}`}>{item.name}</p>
-                  <p className="text-sm text-muted-foreground" data-testid={`vendas-count-${item.rank}`}>
+                  <p className="font-semibold text-foreground" data-testid={`name-ranking-${item.rank}`}>{item.name}</p>
+                  <p className="text-sm text-foreground/70" data-testid={`vendas-count-${item.rank}`}>
                     {item.vendas} {item.vendas === 1 ? "venda" : "vendas"}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-primary" data-testid={`value-ranking-${item.rank}`}>
+                <p className="text-xl font-bold text-primary" data-testid={`value-ranking-${item.rank}`}>
                   {formatCurrency(item.valor)}
                 </p>
               </div>

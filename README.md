@@ -1,73 +1,64 @@
-# Welcome to your Lovable project
+# Grupo Rugido - Sales Hub
 
-## Project info
+Sistema interno de CRM e gestão comercial desenvolvido para o Grupo Rugido. Permite acompanhar todo o funil de vendas, desde o primeiro contato até o recebimento.
 
-**URL**: https://lovable.dev/projects/6c2db3bc-6e6b-4cbb-8e05-621191ff484f
+## Funcionalidades
 
-## How can I edit this code?
+- **Dashboard** - Visão geral com métricas de performance, taxa de conversão, ranking de vendedores e gráficos comparativos
+- **Diário** - Registro de atividades diárias (reuniões, ligações, propostas enviadas)
+- **Propostas** - Acompanhamento de propostas em aberto, com opção de marcar como ganha ou perdida
+- **Histórico** - Consulta de todas as atividades com filtros avançados e edição inline
+- **Recebíveis** - Controle financeiro de vendas e pagamentos recebidos
+- **Administração** - Gestão de usuários e permissões (restrito a super admins)
 
-There are several ways of editing your application.
+## Stack
 
-**Use Lovable**
+- React 18 + TypeScript
+- Vite
+- Tailwind CSS + shadcn/ui
+- Supabase (autenticação e banco de dados)
+- Wouter (rotas)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/6c2db3bc-6e6b-4cbb-8e05-621191ff484f) and start prompting.
+## Rodando o projeto
 
-Changes made via Lovable will be committed automatically to this repo.
+1. Clone o repositório
+2. Instale as dependências:
+```bash
+npm install
+```
 
-**Use your preferred IDE**
+3. Configure as variáveis de ambiente criando o arquivo `client/.env`:
+```env
+VITE_SUPABASE_URL=sua_url_do_supabase
+VITE_SUPABASE_PUBLISHABLE_KEY=sua_chave_anonima
+```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Rode o servidor de desenvolvimento:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Estrutura
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```
+client/
+├── src/
+│   ├── components/     # Componentes de UI
+│   ├── contexts/       # Contextos React (autenticação)
+│   ├── hooks/          # Hooks customizados
+│   ├── integrations/   # Configuração do Supabase
+│   ├── pages/          # Páginas da aplicação
+│   └── lib/            # Funções utilitárias
+```
 
-**Use GitHub Codespaces**
+## Deploy
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+O projeto está configurado para deploy na Vercel. Basta conectar o repositório e configurar as variáveis de ambiente no painel da Vercel.
 
-## What technologies are used for this project?
+## Banco de Dados
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/6c2db3bc-6e6b-4cbb-8e05-621191ff484f) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+O schema do Supabase inclui:
+- `profiles` - Dados dos usuários
+- `activities` - Atividades/reuniões registradas
+- `payments` - Pagamentos recebidos
+- `super_admins` - Controle de permissões administrativas

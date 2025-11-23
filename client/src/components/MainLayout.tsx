@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, ListChecks, History, DollarSign, LogOut, User } from "lucide-react";
+import { LayoutDashboard, FileText, ListChecks, History, DollarSign, LogOut, User, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -17,7 +17,7 @@ interface MainLayoutProps {
 }
 
 export default function MainLayout({ children }: MainLayoutProps) {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isSuperAdmin } = useAuth();
   const [location] = useLocation();
 
   const navItems = [
@@ -26,11 +26,12 @@ export default function MainLayout({ children }: MainLayoutProps) {
     { path: "/propostas", label: "Propostas", icon: ListChecks },
     { path: "/historico", label: "Histórico", icon: History },
     { path: "/recebiveis", label: "Recebíveis", icon: DollarSign },
+    ...(isSuperAdmin ? [{ path: "/admin", label: "Administração", icon: Settings }] : []),
   ];
 
   return (
     <div className="min-h-screen">
-      <nav className="border-b border-border/50 bg-card/50 backdrop-blur-xl sticky top-0 z-50">
+      <nav className="border-b border-primary/20 bg-black/95 backdrop-blur-md sticky top-0 z-50 relative">
         <div className="container mx-auto px-4">
           <div className="flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center space-x-2">
@@ -50,7 +51,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
                       variant={isActive ? "default" : "ghost"}
                       className={cn(
                         "gap-2",
-                        isActive && "glow-purple"
+                        isActive 
+                          ? "glow-purple" 
+                          : "text-gray-300 hover:text-white hover:bg-primary/10"
                       )}
                     >
                       <Icon className="h-4 w-4" />
@@ -71,9 +74,14 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 <DropdownMenuLabel>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">Minha Conta</span>
-                    <span className="text-xs text-muted-foreground truncate">
+                    <span className="text-xs text-foreground/70 truncate">
                       {user?.email}
                     </span>
+                    {isSuperAdmin && (
+                      <span className="text-xs text-primary font-semibold mt-1">
+                        👑 Super Admin
+                      </span>
+                    )}
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -85,6 +93,8 @@ export default function MainLayout({ children }: MainLayoutProps) {
             </DropdownMenu>
           </div>
         </div>
+        {/* Degradê abaixo do header */}
+        <div className="absolute -bottom-8 left-0 right-0 h-8 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none"></div>
       </nav>
 
       <main className="container mx-auto px-4 py-8">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,29 +15,77 @@ interface Proposta {
   date: string | null;
   lead: string | null;
   closer: string | null;
+  closer_id: string | null;
   sale_date: string | null;
 }
 
+interface Profile {
+  id: string;
+  full_name: string | null;
+}
+
 export default function Propostas() {
+  const { user, loading: authLoading } = useAuth();
   const [propostas, setPropostas] = useState<Proposta[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCloser, setSelectedCloser] = useState("todos");
 
   useEffect(() => {
+    if (authLoading || !user) return;
+    loadProfiles();
+  }, [authLoading, user]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
     loadPropostas();
-  }, []);
+  }, [selectedCloser, authLoading, user]);
+
+  const loadProfiles = async () => {
+    try {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .order("full_name");
+      setProfiles(data || []);
+    } catch (error) {
+      console.error("Error loading profiles:", error);
+    }
+  };
 
   const loadPropostas = async () => {
     try {
-      const { data, error } = await supabase
+      setLoading(true);
+      let query = supabase
         .from("activities")
-        .select("*")
-        .or("proposal_sent.eq.Sim,proposal_sent.eq.Yes")
-        .or("deal_outcome.is.null,deal_outcome.eq.Em Aberto,deal_outcome.eq.Open")
-        .not("proposal_value", "is", null)
+        .select("*");
+
+      // Filter by closer if selected
+      if (selectedCloser !== "todos") {
+        query = query.eq("closer_id", selectedCloser);
+      }
+
+      // Get activities with proposals (proposal_sent = Sim/Yes OR proposal_value not null)
+      // AND deal_outcome is null or "Em Aberto" or "Open"
+      const { data, error } = await query
         .order("date", { ascending: false });
 
       if (error) throw error;
-      setPropostas(data || []);
+
+      // Filter in frontend for proposals
+      const filtered = (data || []).filter(activity => {
+        const hasProposal = activity.proposal_sent === "Sim" || 
+                           activity.proposal_sent === "Yes" || 
+                           (activity.proposal_value !== null && activity.proposal_value > 0);
+        
+        const isOpen = !activity.deal_outcome || 
+                      activity.deal_outcome === "Em Aberto" || 
+                      activity.deal_outcome === "Open";
+        
+        return hasProposal && isOpen;
+      });
+
+      setPropostas(filtered);
     } catch (error) {
       console.error("Error loading propostas:", error);
       toast.error("Erro ao carregar propostas");
@@ -47,12 +96,22 @@ export default function Propostas() {
 
   const updateStatus = async (id: number, novoStatus: "Ganho" | "Perdido") => {
     try {
+      // Buscar a proposta para pegar o proposal_value
+      const proposta = propostas.find(p => p.id === id);
+
+      const updateData: any = {
+        deal_outcome: novoStatus === "Ganho" ? "Ganha" : "Perdida", // Usar "Ganha"/"Perdida" para consistência
+        sale_date: new Date().toISOString().split("T")[0],
+      };
+
+      // Se for ganho, copiar proposal_value para sale_value
+      if (novoStatus === "Ganho" && proposta?.proposal_value) {
+        updateData.sale_value = proposta.proposal_value;
+      }
+
       const { error } = await supabase
         .from("activities")
-        .update({
-          deal_outcome: novoStatus,
-          sale_date: new Date().toISOString().split("T")[0],
-        })
+        .update(updateData)
         .eq("id", id);
 
       if (error) throw error;
@@ -82,17 +141,24 @@ export default function Propostas() {
         <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-purple-glow bg-clip-text text-transparent">
           Propostas em Aberto
         </h1>
-        <p className="text-muted-foreground">Converta propostas em vendas ou perdas</p>
+        <p className="text-foreground/80">Converta propostas em vendas ou perdas</p>
       </div>
 
       <div className="flex gap-4">
-        <Select defaultValue="todos-usuarios">
+        <Select value={selectedCloser} onValueChange={setSelectedCloser}>
           <SelectTrigger className="w-[200px] border-primary/20">
             <SelectValue placeholder="Closer" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos-usuarios">Todos os Usuários</SelectItem>
-          </SelectContent>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Usuários</SelectItem>
+                {profiles
+                  .filter(profile => profile.full_name && profile.full_name.trim() !== "")
+                  .map((profile) => (
+                    <SelectItem key={profile.id} value={profile.id}>
+                      {profile.full_name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
         </Select>
       </div>
 
@@ -100,15 +166,15 @@ export default function Propostas() {
         {loading ? (
           <Card className="glass-card">
             <CardContent className="p-8">
-              <p className="text-center text-muted-foreground">Carregando propostas...</p>
+              <p className="text-center text-foreground/80">Carregando propostas...</p>
             </CardContent>
           </Card>
         ) : propostas.length === 0 ? (
           <Card className="glass-card">
             <CardContent className="p-8">
               <div className="text-center">
-                <FileCheck className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-muted-foreground">Nenhuma proposta em aberto</p>
+                <FileCheck className="h-12 w-12 mx-auto mb-4 text-foreground/70" />
+                <p className="text-foreground/80">Nenhuma proposta em aberto</p>
               </div>
             </CardContent>
           </Card>
@@ -121,10 +187,10 @@ export default function Propostas() {
                     <CardTitle className="text-xl">
                       {proposta.lead || "Lead não identificado"}
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
+                    <p className="text-sm text-foreground/80 mt-1">
                       Closer: {proposta.closer || "Não atribuído"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-foreground/70">
                       {proposta.date ? `Enviada em ${formatDate(proposta.date)}` : "Data não informada"}
                     </p>
                   </div>

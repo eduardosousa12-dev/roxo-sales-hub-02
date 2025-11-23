@@ -26,7 +26,7 @@ export default function HorizontalBarChart({ title, data, maxValue }: Horizontal
           return (
             <div key={index} className="space-y-2" data-testid={`bar-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground" data-testid={`label-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>{item.label}</span>
+                <span className="text-foreground/80" data-testid={`label-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>{item.label}</span>
                 <span className="font-semibold" data-testid={`value-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>{item.value}</span>
               </div>
               <div className="h-2 bg-muted/20 rounded-full overflow-hidden">

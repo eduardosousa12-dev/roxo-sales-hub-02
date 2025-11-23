@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -10,9 +10,17 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
 export default function Auth() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, user, loading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
   const [loading, setLoading] = useState(false);
+
+  // Redirecionar se já estiver logado
+  useEffect(() => {
+    if (!authLoading && user) {
+      console.log("✅ Usuário logado, redirecionando para home...");
+      setLocation("/");
+    }
+  }, [user, authLoading, setLocation]);
   
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
@@ -39,7 +47,7 @@ export default function Auth() {
       setLoading(false);
     } else {
       toast.success("Login realizado com sucesso!");
-      setLocation("/");
+      // O redirecionamento será feito automaticamente pelo AuthContext
     }
   };
 
@@ -64,7 +72,7 @@ export default function Auth() {
       setLoading(false);
     } else {
       toast.success("Conta criada com sucesso!");
-      setLocation("/");
+      // O redirecionamento será feito automaticamente pelo AuthContext
     }
   };
 

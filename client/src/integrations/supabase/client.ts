@@ -2,16 +2,44 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// Type assertion para import.meta.env (Vite)
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string;
+const SUPABASE_PUBLISHABLE_KEY = (import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+  console.error('❌ Variáveis de ambiente do Supabase não configuradas!');
+  console.error('Verifique se o arquivo .env existe em client/.env com:');
+  console.error('VITE_SUPABASE_URL=...');
+  console.error('VITE_SUPABASE_PUBLISHABLE_KEY=...');
+  throw new Error('Variáveis de ambiente do Supabase não configuradas');
+}
+
+// Criar instância única do cliente Supabase para evitar múltiplas instâncias
+// Usar uma chave única no localStorage para evitar conflitos
+const STORAGE_KEY = 'sb-tzwzgbulgfiibgodmige-auth-token';
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
-  }
+    storageKey: STORAGE_KEY,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+  db: {
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    },
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10,
+    },
+  },
 });

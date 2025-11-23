@@ -14,7 +14,7 @@ export default function MetricCard({ title, value, icon: Icon, className, valueC
   return (
     <Card className={cn("glass-card glow-purple-hover transition-all", className)}>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+        <CardTitle className="text-sm font-medium text-foreground flex items-center gap-2">
           {Icon && <Icon className="h-4 w-4" />}
           {title}
         </CardTitle>

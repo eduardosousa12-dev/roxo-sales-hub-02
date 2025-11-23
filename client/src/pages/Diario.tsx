@@ -8,38 +8,59 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { FileText, Plus, Save } from "lucide-react";
+import { FileText, Plus, Save, Trash2 } from "lucide-react";
 
 interface Profile {
   id: string;
   full_name: string | null;
 }
 
+interface LancamentoFormData {
+  data: string;
+  closerId: string;
+  closerName: string;
+  bdr: string;
+  leadNome: string;
+  faturamentoEmpresa: string;
+  canal: string;
+  qualificacao: string;
+  reuniaoResgatada: string;
+  tipoReuniao: string;
+  statusAtividade: string;
+  propostaEnviada: string;
+  evolucaoFunil: string;
+  valorProposta: string;
+  observacoes: string;
+}
+
+const getDefaultFormData = (currentUserProfile?: Profile): LancamentoFormData => ({
+  data: new Date().toISOString().split("T")[0],
+  closerId: currentUserProfile?.id || "",
+  closerName: currentUserProfile?.full_name || "",
+  bdr: "",
+  leadNome: "",
+  faturamentoEmpresa: "",
+  canal: "Inbound",
+  qualificacao: "Não Identificado",
+  reuniaoResgatada: "Não",
+  tipoReuniao: "R1",
+  statusAtividade: "Reunião Realizada",
+  propostaEnviada: "Não",
+  evolucaoFunil: "Nenhuma",
+  valorProposta: "",
+  observacoes: "",
+});
+
 export default function Diario() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [formData, setFormData] = useState({
-    data: new Date().toISOString().split("T")[0],
-    closerId: "",
-    closerName: "",
-    bdr: "",
-    leadNome: "",
-    faturamentoEmpresa: "",
-    canal: "Inbound",
-    qualificacao: "Não Identificado",
-    reuniaoResgatada: "Não",
-    tipoReuniao: "R1",
-    statusAtividade: "Reunião Realizada",
-    propostaEnviada: "Não",
-    evolucaoFunil: "Nenhuma",
-    valorProposta: "",
-    observacoes: "",
-  });
+  const [lancamentos, setLancamentos] = useState<LancamentoFormData[]>([getDefaultFormData()]);
 
   useEffect(() => {
+    if (authLoading || !user) return;
     loadProfiles();
-  }, [user]);
+  }, [user, authLoading]);
 
   const loadProfiles = async () => {
     try {
@@ -55,11 +76,7 @@ export default function Diario() {
       if (user && data) {
         const currentUserProfile = data.find(p => p.id === user.id);
         if (currentUserProfile) {
-          setFormData(prev => ({
-            ...prev,
-            closerId: currentUserProfile.id,
-            closerName: currentUserProfile.full_name || ""
-          }));
+          setLancamentos([getDefaultFormData(currentUserProfile)]);
         }
       }
     } catch (error) {
@@ -67,52 +84,77 @@ export default function Diario() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const addLancamento = () => {
+    const currentUserProfile = profiles.find(p => p.id === user?.id);
+    setLancamentos([...lancamentos, getDefaultFormData(currentUserProfile)]);
+  };
+
+  const removeLancamento = (index: number) => {
+    if (lancamentos.length > 1) {
+      setLancamentos(lancamentos.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateLancamento = (index: number, field: keyof LancamentoFormData, value: string) => {
+    const updated = [...lancamentos];
+    if (field === "closerId") {
+      const selected = profiles.find(p => p.id === value);
+      updated[index] = {
+        ...updated[index],
+        closerId: value,
+        closerName: selected?.full_name || ""
+      };
+    } else {
+      updated[index] = { ...updated[index], [field]: value };
+    }
+    setLancamentos(updated);
+  };
+
+  const handleSaveAll = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.closerId) {
-      toast.error("Selecione um closer");
-      return;
-    }
-    
-    if (!formData.leadNome) {
-      toast.error("Preencha o nome do lead/empresa");
-      return;
+    // Validate all forms
+    for (let i = 0; i < lancamentos.length; i++) {
+      const lancamento = lancamentos[i];
+      if (!lancamento.closerId) {
+        toast.error(`Lançamento ${i + 1}: Selecione um closer`);
+        return;
+      }
+      if (!lancamento.leadNome) {
+        toast.error(`Lançamento ${i + 1}: Preencha o nome do lead/empresa`);
+        return;
+      }
     }
     
     try {
       setLoading(true);
+      const activitiesToInsert = [];
       
-      // First, create or get the lead
-      let leadName = formData.leadNome;
-      const { data: existingLead } = await supabase
-        .from("leads")
-        .select("id, name")
-        .eq("name", formData.leadNome)
-        .single();
-      
-      if (!existingLead) {
-        const { data: newLead, error: leadError } = await supabase
+      for (const formData of lancamentos) {
+        // Create or get the lead
+        let leadName = formData.leadNome;
+        const { data: existingLead } = await supabase
           .from("leads")
-          .insert({
-            name: formData.leadNome,
-            notes: formData.faturamentoEmpresa ? `Faturamento: ${formData.faturamentoEmpresa}` : null,
-          })
           .select("id, name")
+          .eq("name", formData.leadNome)
           .single();
         
-        if (leadError) {
-          console.error("Lead creation error:", leadError);
+        if (!existingLead) {
+          const { data: newLead } = await supabase
+            .from("leads")
+            .insert({
+              name: formData.leadNome,
+              notes: formData.faturamentoEmpresa ? `Faturamento: ${formData.faturamentoEmpresa}` : null,
+            })
+            .select("id, name")
+            .single();
+          
+          if (newLead) {
+            leadName = newLead.name;
+          }
         }
-        if (newLead) {
-          leadName = newLead.name;
-        }
-      }
-      
-      // Create the activity
-      const { error } = await supabase
-        .from("activities")
-        .insert({
+        
+        activitiesToInsert.push({
           date: formData.data,
           closer: formData.closerName || null,
           closer_id: formData.closerId || null,
@@ -129,34 +171,23 @@ export default function Diario() {
           reuniao_resgatada: formData.reuniaoResgatada,
           company_revenue: formData.faturamentoEmpresa || null,
         });
+      }
+      
+      const { error } = await supabase
+        .from("activities")
+        .insert(activitiesToInsert);
       
       if (error) throw error;
       
-      toast.success("Lançamento salvo com sucesso!");
+      toast.success(`${lancamentos.length} lançamento(s) salvo(s) com sucesso!`);
       
-      // Reset form and reapply current user selection
+      // Reset forms
       const currentUserProfile = profiles.find(p => p.id === user?.id);
-      setFormData({
-        data: new Date().toISOString().split("T")[0],
-        closerId: currentUserProfile?.id || "",
-        closerName: currentUserProfile?.full_name || "",
-        bdr: "",
-        leadNome: "",
-        faturamentoEmpresa: "",
-        canal: "Inbound",
-        qualificacao: "Não Identificado",
-        reuniaoResgatada: "Não",
-        tipoReuniao: "R1",
-        statusAtividade: "Reunião Realizada",
-        propostaEnviada: "Não",
-        evolucaoFunil: "Nenhuma",
-        valorProposta: "",
-        observacoes: "",
-      });
+      setLancamentos([getDefaultFormData(currentUserProfile)]);
       
     } catch (error: any) {
-      console.error("Error saving activity:", error);
-      toast.error("Erro ao salvar lançamento");
+      console.error("Error saving activities:", error);
+      toast.error("Erro ao salvar lançamentos");
     } finally {
       setLoading(false);
     }
@@ -168,97 +199,106 @@ export default function Diario() {
         <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-purple-glow bg-clip-text text-transparent">
           Lançamento Diário
         </h1>
-        <p className="text-muted-foreground">Registre uma ou mais atividades do seu dia</p>
+        <p className="text-foreground/80">Registre uma ou mais atividades do seu dia</p>
       </div>
 
-      <Card className="glass-card glow-purple">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Nova Atividade
-          </CardTitle>
-          <CardDescription>Preencha os campos abaixo para registrar uma atividade</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSaveAll} className="space-y-6">
+        {lancamentos.map((formData, index) => (
+          <Card key={index} className="glass-card glow-purple border-dashed">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Lançamento {index + 1}
+                </CardTitle>
+                {lancamentos.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeLancamento(index)}
+                    className="text-red-400 hover:text-red-300"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <CardDescription className="text-foreground/80">Preencha os campos abaixo para registrar uma atividade</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="data">Data</Label>
+                <Label htmlFor={`data-${index}`}>Data</Label>
                 <Input
-                  id="data"
+                  id={`data-${index}`}
                   type="date"
                   value={formData.data}
-                  onChange={(e) => setFormData({ ...formData, data: e.target.value })}
+                  onChange={(e) => updateLancamento(index, "data", e.target.value)}
                   className="border-primary/20"
-                  data-testid="input-date"
+                  data-testid={`input-date-${index}`}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="closer">Closer *</Label>
+                <Label htmlFor={`closer-${index}`}>Closer *</Label>
                 <Select 
                   value={formData.closerId} 
-                  onValueChange={(value) => {
-                    const selected = profiles.find(p => p.id === value);
-                    setFormData({ 
-                      ...formData, 
-                      closerId: value,
-                      closerName: selected?.full_name || ""
-                    });
-                  }}
+                  onValueChange={(value) => updateLancamento(index, "closerId", value)}
                 >
-                  <SelectTrigger className="border-primary/20" data-testid="select-closer">
+                  <SelectTrigger className="border-primary/20" data-testid={`select-closer-${index}`}>
                     <SelectValue placeholder="Selecione o closer" />
                   </SelectTrigger>
                   <SelectContent>
-                    {profiles.map(profile => (
-                      <SelectItem key={profile.id} value={profile.id}>
-                        {profile.full_name || "Sem nome"}
-                      </SelectItem>
-                    ))}
+                    {profiles
+                      .filter(profile => profile.full_name && profile.full_name.trim() !== "")
+                      .map(profile => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.full_name}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="bdr">BDR</Label>
+                <Label htmlFor={`bdr-${index}`}>BDR</Label>
                 <Input
-                  id="bdr"
+                  id={`bdr-${index}`}
                   placeholder="Nome do BDR"
                   value={formData.bdr}
-                  onChange={(e) => setFormData({ ...formData, bdr: e.target.value })}
+                  onChange={(e) => updateLancamento(index, "bdr", e.target.value)}
                   className="border-primary/20"
-                  data-testid="input-bdr"
+                  data-testid={`input-bdr-${index}`}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="leadNome">Lead / Empresa *</Label>
+                <Label htmlFor={`leadNome-${index}`}>Lead / Empresa *</Label>
                 <Input
-                  id="leadNome"
+                  id={`leadNome-${index}`}
                   placeholder="Nome da empresa"
                   value={formData.leadNome}
-                  onChange={(e) => setFormData({ ...formData, leadNome: e.target.value })}
+                  onChange={(e) => updateLancamento(index, "leadNome", e.target.value)}
                   className="border-primary/20"
-                  data-testid="input-lead"
+                  data-testid={`input-lead-${index}`}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="faturamento">Faturamento da Empresa</Label>
+                <Label htmlFor={`faturamento-${index}`}>Faturamento da Empresa</Label>
                 <Input
-                  id="faturamento"
+                  id={`faturamento-${index}`}
                   placeholder="Ex: R$ 1.000.000"
                   value={formData.faturamentoEmpresa}
-                  onChange={(e) => setFormData({ ...formData, faturamentoEmpresa: e.target.value })}
+                  onChange={(e) => updateLancamento(index, "faturamentoEmpresa", e.target.value)}
                   className="border-primary/20"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="canal">Canal</Label>
-                <Select value={formData.canal} onValueChange={(value) => setFormData({ ...formData, canal: value })}>
-                  <SelectTrigger className="border-primary/20">
+                <Label htmlFor={`canal-${index}`}>Canal</Label>
+                <Select value={formData.canal} onValueChange={(value) => updateLancamento(index, "canal", value)}>
+                  <SelectTrigger className="border-primary/20" data-testid={`select-canal-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -271,9 +311,9 @@ export default function Diario() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="qualificacao">Qualificação</Label>
-                <Select value={formData.qualificacao} onValueChange={(value) => setFormData({ ...formData, qualificacao: value })}>
-                  <SelectTrigger className="border-primary/20">
+                <Label htmlFor={`qualificacao-${index}`}>Qualificação</Label>
+                <Select value={formData.qualificacao} onValueChange={(value) => updateLancamento(index, "qualificacao", value)}>
+                  <SelectTrigger className="border-primary/20" data-testid={`select-qualificacao-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -286,9 +326,9 @@ export default function Diario() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="reuniaoResgatada">Reunião Resgatada?</Label>
-                <Select value={formData.reuniaoResgatada} onValueChange={(value) => setFormData({ ...formData, reuniaoResgatada: value })}>
-                  <SelectTrigger className="border-primary/20">
+                <Label htmlFor={`reuniaoResgatada-${index}`}>Reunião Resgatada?</Label>
+                <Select value={formData.reuniaoResgatada} onValueChange={(value) => updateLancamento(index, "reuniaoResgatada", value)}>
+                  <SelectTrigger className="border-primary/20" data-testid={`select-reuniao-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -299,9 +339,9 @@ export default function Diario() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="tipoReuniao">Tipo de Reunião</Label>
-                <Select value={formData.tipoReuniao} onValueChange={(value) => setFormData({ ...formData, tipoReuniao: value })}>
-                  <SelectTrigger className="border-primary/20" data-testid="select-meeting-type">
+                <Label htmlFor={`tipoReuniao-${index}`}>Tipo de Reunião</Label>
+                <Select value={formData.tipoReuniao} onValueChange={(value) => updateLancamento(index, "tipoReuniao", value)}>
+                  <SelectTrigger className="border-primary/20" data-testid={`select-meeting-type-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -315,9 +355,9 @@ export default function Diario() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="statusAtividade">Status da Atividade</Label>
-                <Select value={formData.statusAtividade} onValueChange={(value) => setFormData({ ...formData, statusAtividade: value })}>
-                  <SelectTrigger className="border-primary/20">
+                <Label htmlFor={`statusAtividade-${index}`}>Status da Atividade</Label>
+                <Select value={formData.statusAtividade} onValueChange={(value) => updateLancamento(index, "statusAtividade", value)}>
+                  <SelectTrigger className="border-primary/20" data-testid={`select-status-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -329,9 +369,9 @@ export default function Diario() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="propostaEnviada">Proposta Enviada?</Label>
-                <Select value={formData.propostaEnviada} onValueChange={(value) => setFormData({ ...formData, propostaEnviada: value })}>
-                  <SelectTrigger className="border-primary/20">
+                <Label htmlFor={`propostaEnviada-${index}`}>Proposta Enviada?</Label>
+                <Select value={formData.propostaEnviada} onValueChange={(value) => updateLancamento(index, "propostaEnviada", value)}>
+                  <SelectTrigger className="border-primary/20" data-testid={`select-proposta-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -342,9 +382,9 @@ export default function Diario() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="evolucaoFunil">Evolução no Funil</Label>
-                <Select value={formData.evolucaoFunil} onValueChange={(value) => setFormData({ ...formData, evolucaoFunil: value })}>
-                  <SelectTrigger className="border-primary/20">
+                <Label htmlFor={`evolucaoFunil-${index}`}>Evolução no Funil</Label>
+                <Select value={formData.evolucaoFunil} onValueChange={(value) => updateLancamento(index, "evolucaoFunil", value)}>
+                  <SelectTrigger className="border-primary/20" data-testid={`select-evolucao-${index}`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -358,37 +398,52 @@ export default function Diario() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="valorProposta">Valor da Proposta (R$)</Label>
+                <Label htmlFor={`valorProposta-${index}`}>Valor da Proposta (R$)</Label>
                 <Input
-                  id="valorProposta"
+                  id={`valorProposta-${index}`}
                   type="number"
                   step="0.01"
                   placeholder="0.00"
                   value={formData.valorProposta}
-                  onChange={(e) => setFormData({ ...formData, valorProposta: e.target.value })}
+                  onChange={(e) => updateLancamento(index, "valorProposta", e.target.value)}
                   className="border-primary/20"
+                  data-testid={`input-proposta-${index}`}
                 />
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="observacoes">Observações</Label>
+              <Label htmlFor={`observacoes-${index}`}>Observações</Label>
               <Textarea
-                id="observacoes"
+                id={`observacoes-${index}`}
                 placeholder="Adicione notas sobre a negociação..."
                 value={formData.observacoes}
-                onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                onChange={(e) => updateLancamento(index, "observacoes", e.target.value)}
                 className="border-primary/20 min-h-[100px]"
+                data-testid={`textarea-obs-${index}`}
               />
             </div>
 
-            <Button type="submit" disabled={loading} className="w-full glow-purple-hover">
-              <Save className="mr-2 h-4 w-4" />
-              {loading ? "Salvando..." : "Salvar Lançamento"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        ))}
+
+        <div className="flex gap-4">
+          <Button
+            type="button"
+            onClick={addLancamento}
+            variant="outline"
+            className="border-dashed border-primary/50 hover:border-primary"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Adicionar Lançamento
+          </Button>
+          <Button type="submit" disabled={loading} className="flex-1 glow-purple-hover">
+            <Save className="mr-2 h-4 w-4" />
+            {loading ? "Salvando..." : "Salvar Todos os Lançamentos"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }
