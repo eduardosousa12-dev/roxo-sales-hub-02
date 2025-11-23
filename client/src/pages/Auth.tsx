@@ -89,7 +89,7 @@ export default function Auth() {
         <Card className="glass-card glow-purple border-2">
           <CardHeader>
             <CardTitle className="text-2xl">Acesso ao Sistema</CardTitle>
-            <CardDescription>Entre com sua conta ou crie uma nova</CardDescription>
+            <CardDescription className="text-foreground/70">Entre com sua conta ou crie uma nova</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
