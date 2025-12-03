@@ -23,6 +23,8 @@ export default function Dashboard() {
   const [selectedUser, setSelectedUser] = useState<string>("todos");
   const [selectedChannel, setSelectedChannel] = useState<string>("todos");
   const [selectedPeriod, setSelectedPeriod] = useState<string>("todos");
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
   const mountedRef = useRef(true);
   // Contador de requisições para ignorar respostas obsoletas
   const requestIdRef = useRef(0);
@@ -110,9 +112,13 @@ export default function Dashboard() {
       console.log("⏳ Dashboard: Aguardando autenticação...");
       return;
     }
+    // Se for personalizado, só carrega quando ambas as datas estiverem preenchidas
+    if (selectedPeriod === "personalizado" && (!customStartDate || !customEndDate)) {
+      return;
+    }
     console.log("✅ Dashboard: Carregando métricas...");
     loadDashboardData();
-  }, [selectedUser, selectedChannel, selectedPeriod, authLoading, user]);
+  }, [selectedUser, selectedChannel, selectedPeriod, customStartDate, customEndDate, authLoading, user]);
 
   const loadProfiles = async () => {
     try {
@@ -220,16 +226,41 @@ export default function Dashboard() {
 
       // Filtro por período
       if (selectedPeriod !== "todos") {
-        const days = parseInt(selectedPeriod);
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - days);
-        const cutoffStr = cutoffDate.toISOString().split('T')[0];
+        let startDate: string;
+        let endDate: string = new Date().toISOString().split('T')[0];
+
+        if (selectedPeriod === "esse_mes") {
+          // Primeiro dia do mês atual
+          const now = new Date();
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+          console.log(`🔍 Filtro: Esse mês (${startDate} a ${endDate})`);
+        } else if (selectedPeriod === "mes_passado") {
+          // Primeiro e último dia do mês passado
+          const now = new Date();
+          const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastDayLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+          startDate = firstDayLastMonth.toISOString().split('T')[0];
+          endDate = lastDayLastMonth.toISOString().split('T')[0];
+          console.log(`🔍 Filtro: Mês passado (${startDate} a ${endDate})`);
+        } else if (selectedPeriod === "personalizado") {
+          // Datas personalizadas
+          startDate = customStartDate;
+          endDate = customEndDate;
+          console.log(`🔍 Filtro: Personalizado (${startDate} a ${endDate})`);
+        } else {
+          // Últimos X dias
+          const days = parseInt(selectedPeriod);
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - days);
+          startDate = cutoffDate.toISOString().split('T')[0];
+          console.log(`🔍 Filtro por período (${days} dias): desde ${startDate}`);
+        }
 
         filteredActivities = filteredActivities.filter(a => {
           const activityDate = a.date || a.created_at?.split('T')[0];
-          return activityDate >= cutoffStr;
+          return activityDate >= startDate && activityDate <= endDate;
         });
-        console.log(`🔍 Filtro por período (${days} dias): ${filteredActivities.length} atividades`);
+        console.log(`🔍 Atividades após filtro de período: ${filteredActivities.length}`);
       }
 
       console.log(`📊 [Request ${currentRequestId}] Atividades após filtros: ${filteredActivities.length}`);
@@ -466,11 +497,34 @@ export default function Dashboard() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Máximo</SelectItem>
+            <SelectItem value="esse_mes">Esse mês</SelectItem>
+            <SelectItem value="mes_passado">Mês passado</SelectItem>
             <SelectItem value="7">Últimos 7 dias</SelectItem>
             <SelectItem value="30">Últimos 30 dias</SelectItem>
             <SelectItem value="90">Últimos 90 dias</SelectItem>
+            <SelectItem value="personalizado">Personalizado</SelectItem>
           </SelectContent>
         </Select>
+
+        {selectedPeriod === "personalizado" && (
+          <div className="flex gap-2 items-center">
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="px-3 py-2 rounded-md border border-primary/20 bg-background text-foreground"
+              placeholder="Data inicial"
+            />
+            <span className="text-foreground/60">até</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="px-3 py-2 rounded-md border border-primary/20 bg-background text-foreground"
+              placeholder="Data final"
+            />
+          </div>
+        )}
       </div>
 
       {loading ? (
