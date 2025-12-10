@@ -563,19 +563,6 @@ export default function Recebiveis() {
         // Filtrar pagamentos pelo período e agrupar por activity_id
         const paymentsByActivity = new Map<number, number>();
 
-        // Contadores para debug
-        let paymentsWithoutDate = 0;
-        let paymentsOutOfRange = 0;
-        let paymentsIncluded = 0;
-
-        console.log("🔍 Debug filtro recebimentos:", {
-          paymentPeriod,
-          paymentDateFromStr,
-          paymentDateToStr,
-          totalPayments: paymentsData?.length,
-          samplePayment: paymentsData?.[0]
-        });
-
         (paymentsData || []).forEach(p => {
           if (p.activity_id) {
             // Aplicar filtro de período dos recebimentos
@@ -583,41 +570,36 @@ export default function Recebiveis() {
               const rawPaymentDate = p.data_pagamento;
 
               // Se pagamento não tem data, NÃO incluir quando há filtro ativo
-              // (comportamento correto: sem data = não sabemos quando foi pago)
               if (!rawPaymentDate) {
-                paymentsWithoutDate++;
-                return; // Ignorar pagamentos sem data quando filtro está ativo
+                return;
               }
 
               // Normalizar data do pagamento para YYYY-MM-DD
               const paymentDate = rawPaymentDate.substring(0, 10);
 
               if (paymentDateFromStr && paymentDate < paymentDateFromStr) {
-                paymentsOutOfRange++;
                 return;
               }
               if (paymentDateToStr && paymentDate > paymentDateToStr) {
-                paymentsOutOfRange++;
                 return;
               }
             }
 
-            paymentsIncluded++;
             const current = paymentsByActivity.get(p.activity_id) || 0;
             paymentsByActivity.set(p.activity_id, current + (p.valor_pago || 0));
           }
         });
 
-        console.log("📊 Debug pagamentos:", {
-          total: paymentsData?.length,
-          semData: paymentsWithoutDate,
-          foraDoRange: paymentsOutOfRange,
-          incluidos: paymentsIncluded,
-          atividades: paymentsByActivity.size
-        });
-
         let totalVendido = 0;
         let totalRecebido = 0;
+
+        // Calcular totalRecebido diretamente dos pagamentos filtrados por período
+        // Isso garante que pagamentos do período selecionado sejam contados
+        // independente de quando a venda foi feita
+        if (paymentPeriod !== "todos" && paymentPeriod !== "maximo") {
+          // Quando há filtro de período de recebimento, somar todos os pagamentos do período
+          totalRecebido = Array.from(paymentsByActivity.values()).reduce((sum, val) => sum + val, 0);
+        }
 
         salesForMetrics.forEach(sale => {
           // Usar sale_value se existir, senão usar proposal_value
@@ -633,7 +615,10 @@ export default function Recebiveis() {
           }
 
           totalVendido += saleValue;
-          totalRecebido += paid;
+          // Se NÃO há filtro de período de recebimento, calcular totalRecebido baseado nas vendas
+          if (paymentPeriod === "todos" || paymentPeriod === "maximo") {
+            totalRecebido += paid;
+          }
         });
 
         setMetricsData({
