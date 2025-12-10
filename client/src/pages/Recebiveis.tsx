@@ -50,6 +50,13 @@ export default function Recebiveis() {
   const [selectedCloser, setSelectedCloser] = useState("todos");
   const [salePeriod, setSalePeriod] = useState("maximo");
   const [selectedStatus, setSelectedStatus] = useState("todos");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+
+  // Filtro de período para recebimentos
+  const [paymentPeriod, setPaymentPeriod] = useState("maximo");
+  const [paymentCustomStartDate, setPaymentCustomStartDate] = useState("");
+  const [paymentCustomEndDate, setPaymentCustomEndDate] = useState("");
 
   // Modal de pagamentos
   const [selectedSale, setSelectedSale] = useState<SaleWithPayments | null>(null);
@@ -90,7 +97,7 @@ export default function Recebiveis() {
   useEffect(() => {
     if (authLoading || !user) return;
     loadSalesWithPayments();
-  }, [selectedCloser, salePeriod, selectedStatus, authLoading, user]);
+  }, [selectedCloser, salePeriod, selectedStatus, customStartDate, customEndDate, authLoading, user]);
 
   const loadProfiles = async () => {
     try {
@@ -181,13 +188,35 @@ export default function Recebiveis() {
 
       // Filtro por período da venda
       if (salePeriod !== "todos" && salePeriod !== "maximo") {
-        const daysAgo = parseInt(salePeriod);
-        const dateFrom = new Date();
-        dateFrom.setDate(dateFrom.getDate() - daysAgo);
-        const dateFromStr = dateFrom.toISOString().split('T')[0];
+        const now = new Date();
+        let dateFromStr = "";
+        let dateToStr = "";
+
+        if (salePeriod === "esse_mes") {
+          // Primeiro dia do mês atual
+          dateFromStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+          dateToStr = now.toISOString().split('T')[0];
+        } else if (salePeriod === "mes_passado") {
+          // Primeiro e último dia do mês passado
+          dateFromStr = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+          dateToStr = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+        } else if (salePeriod === "personalizado") {
+          dateFromStr = customStartDate;
+          dateToStr = customEndDate;
+        } else {
+          // Filtro por dias (7, 30, 90)
+          const daysAgo = parseInt(salePeriod);
+          const dateFrom = new Date();
+          dateFrom.setDate(dateFrom.getDate() - daysAgo);
+          dateFromStr = dateFrom.toISOString().split('T')[0];
+          dateToStr = now.toISOString().split('T')[0];
+        }
+
         combinedSales = combinedSales.filter(s => {
           if (!s.date) return false;
-          return s.date >= dateFromStr;
+          if (dateFromStr && s.date < dateFromStr) return false;
+          if (dateToStr && s.date > dateToStr) return false;
+          return true;
         });
       }
 
@@ -434,25 +463,78 @@ export default function Recebiveis() {
           salesForMetrics = salesForMetrics.filter(s => s.closer_id === selectedCloser);
         }
 
+        // Filtro por período da venda
         if (salePeriod !== "todos" && salePeriod !== "maximo") {
-          const daysAgo = parseInt(salePeriod);
-          const dateFrom = new Date();
-          dateFrom.setDate(dateFrom.getDate() - daysAgo);
-          const dateFromStr = dateFrom.toISOString().split('T')[0];
+          const now = new Date();
+          let dateFromStr = "";
+          let dateToStr = "";
+
+          if (salePeriod === "esse_mes") {
+            dateFromStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            dateToStr = now.toISOString().split('T')[0];
+          } else if (salePeriod === "mes_passado") {
+            dateFromStr = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
+            dateToStr = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+          } else if (salePeriod === "personalizado") {
+            dateFromStr = customStartDate;
+            dateToStr = customEndDate;
+          } else {
+            const daysAgo = parseInt(salePeriod);
+            const dateFrom = new Date();
+            dateFrom.setDate(dateFrom.getDate() - daysAgo);
+            dateFromStr = dateFrom.toISOString().split('T')[0];
+            dateToStr = now.toISOString().split('T')[0];
+          }
+
           salesForMetrics = salesForMetrics.filter(s => {
             const saleDate = s.date || s.created_at?.split('T')[0];
             if (!saleDate) return false;
-            return saleDate >= dateFromStr;
+            if (dateFromStr && saleDate < dateFromStr) return false;
+            if (dateToStr && saleDate > dateToStr) return false;
+            return true;
           });
         }
 
         const { data: paymentsData } = await supabase
           .from("payments")
-          .select("activity_id, valor_pago");
+          .select("activity_id, valor_pago, data_pagamento");
 
+        // Calcular datas de filtro para recebimentos
+        let paymentDateFromStr = "";
+        let paymentDateToStr = "";
+        const nowPayment = new Date();
+
+        if (paymentPeriod !== "todos" && paymentPeriod !== "maximo") {
+          if (paymentPeriod === "esse_mes") {
+            paymentDateFromStr = new Date(nowPayment.getFullYear(), nowPayment.getMonth(), 1).toISOString().split('T')[0];
+            paymentDateToStr = nowPayment.toISOString().split('T')[0];
+          } else if (paymentPeriod === "mes_passado") {
+            paymentDateFromStr = new Date(nowPayment.getFullYear(), nowPayment.getMonth() - 1, 1).toISOString().split('T')[0];
+            paymentDateToStr = new Date(nowPayment.getFullYear(), nowPayment.getMonth(), 0).toISOString().split('T')[0];
+          } else if (paymentPeriod === "personalizado") {
+            paymentDateFromStr = paymentCustomStartDate;
+            paymentDateToStr = paymentCustomEndDate;
+          } else {
+            const daysAgo = parseInt(paymentPeriod);
+            const dateFrom = new Date();
+            dateFrom.setDate(dateFrom.getDate() - daysAgo);
+            paymentDateFromStr = dateFrom.toISOString().split('T')[0];
+            paymentDateToStr = nowPayment.toISOString().split('T')[0];
+          }
+        }
+
+        // Filtrar pagamentos pelo período e agrupar por activity_id
         const paymentsByActivity = new Map<number, number>();
         (paymentsData || []).forEach(p => {
           if (p.activity_id) {
+            // Aplicar filtro de período dos recebimentos
+            if (paymentDateFromStr || paymentDateToStr) {
+              const paymentDate = p.data_pagamento;
+              if (!paymentDate) return;
+              if (paymentDateFromStr && paymentDate < paymentDateFromStr) return;
+              if (paymentDateToStr && paymentDate > paymentDateToStr) return;
+            }
+
             const current = paymentsByActivity.get(p.activity_id) || 0;
             paymentsByActivity.set(p.activity_id, current + (p.valor_pago || 0));
           }
@@ -465,6 +547,15 @@ export default function Recebiveis() {
           // Usar sale_value se existir, senão usar proposal_value
           const saleValue = sale.sale_value || sale.proposal_value || 0;
           const paid = paymentsByActivity.get(sale.id) || 0;
+          const saldoDevedor = saleValue - paid;
+          const status = saldoDevedor <= 0 ? "Pago" : "Pendente";
+
+          // Aplicar filtro de status
+          if (selectedStatus !== "todos") {
+            const statusFilter = selectedStatus === "pendente" ? "Pendente" : "Pago";
+            if (status !== statusFilter) return;
+          }
+
           totalVendido += saleValue;
           totalRecebido += paid;
         });
@@ -482,7 +573,7 @@ export default function Recebiveis() {
     if (!authLoading && user) {
       loadMetrics();
     }
-  }, [selectedCloser, salePeriod, authLoading, user]);
+  }, [selectedCloser, salePeriod, selectedStatus, customStartDate, customEndDate, paymentPeriod, paymentCustomStartDate, paymentCustomEndDate, authLoading, user]);
 
   return (
     <div className="space-y-6">
@@ -495,46 +586,133 @@ export default function Recebiveis() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 flex-wrap items-center">
-        <Select value={selectedCloser} onValueChange={setSelectedCloser}>
-          <SelectTrigger className="w-[180px] border-primary/20" data-testid="select-closer">
-            <SelectValue placeholder="Closer" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Usuários</SelectItem>
-            {profiles
-              .filter(profile => profile.full_name && profile.full_name.trim() !== "")
-              .map((profile) => (
-                <SelectItem key={profile.id} value={profile.id}>
-                  {profile.full_name}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
+      <Card className="glass-card border-primary/10">
+        <CardContent className="pt-4 space-y-4">
+          {/* Linha 1: Filtros gerais */}
+          <div className="flex gap-6 flex-wrap items-end">
+            <div className="space-y-1">
+              <Label className="text-xs text-foreground/70">Closer</Label>
+              <Select value={selectedCloser} onValueChange={setSelectedCloser}>
+                <SelectTrigger className="w-[180px] border-primary/20" data-testid="select-closer">
+                  <SelectValue placeholder="Closer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os Usuários</SelectItem>
+                  {profiles
+                    .filter(profile => profile.full_name && profile.full_name.trim() !== "")
+                    .map((profile) => (
+                      <SelectItem key={profile.id} value={profile.id}>
+                        {profile.full_name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <Select value={salePeriod} onValueChange={setSalePeriod}>
-          <SelectTrigger className="w-[160px] border-primary/20" data-testid="select-sale-period">
-            <SelectValue placeholder="Período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="maximo">Máximo</SelectItem>
-            <SelectItem value="7">Últimos 7 dias</SelectItem>
-            <SelectItem value="30">Últimos 30 dias</SelectItem>
-            <SelectItem value="90">Últimos 90 dias</SelectItem>
-          </SelectContent>
-        </Select>
+            <div className="space-y-1">
+              <Label className="text-xs text-foreground/70">Status do Pagamento</Label>
+              <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                <SelectTrigger className="w-[140px] border-primary/20" data-testid="select-status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="pendente">Não Pago</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-        <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-          <SelectTrigger className="w-[140px] border-primary/20" data-testid="select-status">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="pago">Pago</SelectItem>
-            <SelectItem value="pendente">Não Pago</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+          {/* Linha 2: Filtro de período das vendas */}
+          <div className="flex gap-4 flex-wrap items-end border-t border-primary/10 pt-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-foreground/70">Período das Vendas</Label>
+              <Select value={salePeriod} onValueChange={setSalePeriod}>
+                <SelectTrigger className="w-[160px] border-primary/20" data-testid="select-sale-period">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="maximo">Máximo</SelectItem>
+                  <SelectItem value="esse_mes">Esse mês</SelectItem>
+                  <SelectItem value="mes_passado">Mês passado</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  <SelectItem value="90">Últimos 90 dias</SelectItem>
+                  <SelectItem value="personalizado">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {salePeriod === "personalizado" && (
+              <div className="flex gap-2 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground/70">De</Label>
+                  <Input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-[140px] border-primary/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground/70">Até</Label>
+                  <Input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-[140px] border-primary/20"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Linha 3: Filtro de período dos recebimentos */}
+          <div className="flex gap-4 flex-wrap items-end border-t border-primary/10 pt-4">
+            <div className="space-y-1">
+              <Label className="text-xs text-foreground/70">Período dos Recebimentos</Label>
+              <Select value={paymentPeriod} onValueChange={setPaymentPeriod}>
+                <SelectTrigger className="w-[160px] border-primary/20" data-testid="select-payment-period">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="maximo">Máximo</SelectItem>
+                  <SelectItem value="esse_mes">Esse mês</SelectItem>
+                  <SelectItem value="mes_passado">Mês passado</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  <SelectItem value="90">Últimos 90 dias</SelectItem>
+                  <SelectItem value="personalizado">Personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {paymentPeriod === "personalizado" && (
+              <div className="flex gap-2 items-end">
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground/70">De</Label>
+                  <Input
+                    type="date"
+                    value={paymentCustomStartDate}
+                    onChange={(e) => setPaymentCustomStartDate(e.target.value)}
+                    className="w-[140px] border-primary/20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-foreground/70">Até</Label>
+                  <Input
+                    type="date"
+                    value={paymentCustomEndDate}
+                    onChange={(e) => setPaymentCustomEndDate(e.target.value)}
+                    className="w-[140px] border-primary/20"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
