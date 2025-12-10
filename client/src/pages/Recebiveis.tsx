@@ -563,34 +563,58 @@ export default function Recebiveis() {
         // Filtrar pagamentos pelo período e agrupar por activity_id
         const paymentsByActivity = new Map<number, number>();
 
+        // Contadores para debug
+        let paymentsWithoutDate = 0;
+        let paymentsOutOfRange = 0;
+        let paymentsIncluded = 0;
+
         console.log("🔍 Debug filtro recebimentos:", {
           paymentPeriod,
           paymentDateFromStr,
           paymentDateToStr,
-          totalPayments: paymentsData?.length
+          totalPayments: paymentsData?.length,
+          samplePayment: paymentsData?.[0]
         });
 
         (paymentsData || []).forEach(p => {
           if (p.activity_id) {
             // Aplicar filtro de período dos recebimentos
             if (paymentDateFromStr || paymentDateToStr) {
-              // Normalizar data do pagamento para YYYY-MM-DD (pode vir como ISO com timezone)
               const rawPaymentDate = p.data_pagamento;
-              if (!rawPaymentDate) return;
 
-              // Extrair apenas a parte da data (primeiros 10 caracteres: YYYY-MM-DD)
+              // Se pagamento não tem data, NÃO incluir quando há filtro ativo
+              // (comportamento correto: sem data = não sabemos quando foi pago)
+              if (!rawPaymentDate) {
+                paymentsWithoutDate++;
+                return; // Ignorar pagamentos sem data quando filtro está ativo
+              }
+
+              // Normalizar data do pagamento para YYYY-MM-DD
               const paymentDate = rawPaymentDate.substring(0, 10);
 
-              if (paymentDateFromStr && paymentDate < paymentDateFromStr) return;
-              if (paymentDateToStr && paymentDate > paymentDateToStr) return;
+              if (paymentDateFromStr && paymentDate < paymentDateFromStr) {
+                paymentsOutOfRange++;
+                return;
+              }
+              if (paymentDateToStr && paymentDate > paymentDateToStr) {
+                paymentsOutOfRange++;
+                return;
+              }
             }
 
+            paymentsIncluded++;
             const current = paymentsByActivity.get(p.activity_id) || 0;
             paymentsByActivity.set(p.activity_id, current + (p.valor_pago || 0));
           }
         });
 
-        console.log("📊 Pagamentos após filtro:", paymentsByActivity.size, "atividades com pagamentos");
+        console.log("📊 Debug pagamentos:", {
+          total: paymentsData?.length,
+          semData: paymentsWithoutDate,
+          foraDoRange: paymentsOutOfRange,
+          incluidos: paymentsIncluded,
+          atividades: paymentsByActivity.size
+        });
 
         let totalVendido = 0;
         let totalRecebido = 0;
