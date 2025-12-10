@@ -4,8 +4,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { FileCheck, TrendingUp, TrendingDown } from "lucide-react";
+import { FileCheck, TrendingUp, TrendingDown, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface Proposta {
@@ -30,6 +33,12 @@ export default function Propostas() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCloser, setSelectedCloser] = useState("todos");
+
+  // Estados para o modal de confirmação
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<"Ganho" | "Perdido">("Ganho");
+  const [selectedPropostaId, setSelectedPropostaId] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -94,29 +103,39 @@ export default function Propostas() {
     }
   };
 
-  const updateStatus = async (id: number, novoStatus: "Ganho" | "Perdido") => {
+  const openConfirmModal = (id: number, tipo: "Ganho" | "Perdido") => {
+    setSelectedPropostaId(id);
+    setModalType(tipo);
+    setSelectedDate(new Date().toISOString().split("T")[0]);
+    setModalOpen(true);
+  };
+
+  const handleConfirmStatus = async () => {
+    if (!selectedPropostaId) return;
+
     try {
       // Buscar a proposta para pegar o proposal_value
-      const proposta = propostas.find(p => p.id === id);
+      const proposta = propostas.find(p => p.id === selectedPropostaId);
 
       const updateData: any = {
-        deal_outcome: novoStatus === "Ganho" ? "Ganha" : "Perdida", // Usar "Ganha"/"Perdida" para consistência
-        sale_date: new Date().toISOString().split("T")[0],
+        deal_outcome: modalType === "Ganho" ? "Ganha" : "Perdida",
+        sale_date: selectedDate,
       };
 
       // Se for ganho, copiar proposal_value para sale_value
-      if (novoStatus === "Ganho" && proposta?.proposal_value) {
+      if (modalType === "Ganho" && proposta?.proposal_value) {
         updateData.sale_value = proposta.proposal_value;
       }
 
       const { error } = await supabase
         .from("activities")
         .update(updateData)
-        .eq("id", id);
+        .eq("id", selectedPropostaId);
 
       if (error) throw error;
 
-      toast.success(`Proposta marcada como ${novoStatus}`);
+      toast.success(`Proposta marcada como ${modalType}`);
+      setModalOpen(false);
       loadPropostas();
     } catch (error) {
       console.error("Error updating proposta:", error);
@@ -208,7 +227,7 @@ export default function Propostas() {
                   </div>
                   <div className="flex gap-2">
                     <Button
-                      onClick={() => updateStatus(proposta.id, "Ganho")}
+                      onClick={() => openConfirmModal(proposta.id, "Ganho")}
                       variant="default"
                       className="glow-purple-hover"
                     >
@@ -216,7 +235,7 @@ export default function Propostas() {
                       Marcar como Ganho
                     </Button>
                     <Button
-                      onClick={() => updateStatus(proposta.id, "Perdido")}
+                      onClick={() => openConfirmModal(proposta.id, "Perdido")}
                       variant="destructive"
                     >
                       <TrendingDown className="mr-2 h-4 w-4" />
@@ -229,6 +248,59 @@ export default function Propostas() {
           ))
         )}
       </div>
+
+      {/* Modal de confirmação com seleção de data */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {modalType === "Ganho" ? (
+                <>
+                  <TrendingUp className="h-5 w-5 text-green-500" />
+                  Marcar como Ganho
+                </>
+              ) : (
+                <>
+                  <TrendingDown className="h-5 w-5 text-red-500" />
+                  Marcar como Perdido
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {modalType === "Ganho"
+                ? "Selecione a data em que a venda foi concluída."
+                : "Selecione a data em que a proposta foi perdida."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="date" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                {modalType === "Ganho" ? "Data da Venda" : "Data da Perda"}
+              </Label>
+              <Input
+                id="date"
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="border-primary/20"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleConfirmStatus}
+              variant={modalType === "Ganho" ? "default" : "destructive"}
+              className={modalType === "Ganho" ? "glow-purple-hover" : ""}
+            >
+              Confirmar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
