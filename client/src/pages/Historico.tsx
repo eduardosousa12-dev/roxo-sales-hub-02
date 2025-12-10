@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Search, Calendar, Filter, X } from "lucide-react";
+import { Search, Calendar, Filter, X, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -52,6 +52,7 @@ export default function Historico() {
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [editForm, setEditForm] = useState<Partial<Activity>>({});
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Search and filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -212,6 +213,37 @@ export default function Historico() {
     }
   };
 
+  const deleteActivity = async () => {
+    if (!selectedActivity) return;
+
+    if (!confirm("Tem certeza que deseja apagar este lançamento? Esta ação não pode ser desfeita.")) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+
+      const { error } = await supabase
+        .from("activities")
+        .delete()
+        .eq("id", selectedActivity.id);
+
+      if (error) {
+        console.error("Erro Supabase ao deletar:", error);
+        throw error;
+      }
+
+      toast.success("Lançamento apagado com sucesso!");
+      closeEditModal();
+      loadActivities();
+    } catch (error: any) {
+      console.error("Error deleting activity:", error);
+      toast.error(`Erro ao apagar: ${error?.message || "Erro desconhecido"}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const clearAllFilters = () => {
     setSearchTerm("");
     setSearchLead("");
@@ -300,7 +332,9 @@ export default function Historico() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
-      return format(new Date(dateString), "dd/MM/yyyy", { locale: ptBR });
+      // Adiciona T12:00:00 para evitar problemas de timezone
+      const date = new Date(dateString + "T12:00:00");
+      return format(date, "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return dateString;
     }
@@ -1009,13 +1043,24 @@ export default function Historico() {
                 />
               </div>
 
-              <Button
-                onClick={saveActivity}
-                disabled={saving}
-                className="w-full bg-primary hover:bg-primary/90"
-              >
-                {saving ? "Salvando..." : "Salvar Alterações"}
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  onClick={deleteActivity}
+                  disabled={deleting || saving}
+                  variant="destructive"
+                  className="flex-1"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  {deleting ? "Apagando..." : "Apagar Lançamento"}
+                </Button>
+                <Button
+                  onClick={saveActivity}
+                  disabled={saving || deleting}
+                  className="flex-1 bg-primary hover:bg-primary/90"
+                >
+                  {saving ? "Salvando..." : "Salvar Alterações"}
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
