@@ -594,11 +594,21 @@ export default function Recebiveis() {
         let totalRecebido = 0;
 
         // Calcular totalRecebido diretamente dos pagamentos filtrados por período
-        // Isso garante que pagamentos do período selecionado sejam contados
-        // independente de quando a venda foi feita
+        // MAS apenas para atividades do closer selecionado
         if (paymentPeriod !== "todos" && paymentPeriod !== "maximo") {
-          // Quando há filtro de período de recebimento, somar todos os pagamentos do período
-          totalRecebido = Array.from(paymentsByActivity.values()).reduce((sum, val) => sum + val, 0);
+          // Criar set de IDs de atividades do closer selecionado (ou todas se "todos")
+          const allowedActivityIds = new Set(
+            selectedCloser === "todos"
+              ? (activitiesData || []).map(a => a.id)
+              : (activitiesData || []).filter(a => a.closer_id === selectedCloser).map(a => a.id)
+          );
+
+          // Somar apenas pagamentos de atividades permitidas
+          paymentsByActivity.forEach((valor, activityId) => {
+            if (allowedActivityIds.has(activityId)) {
+              totalRecebido += valor;
+            }
+          });
         }
 
         salesForMetrics.forEach(sale => {
