@@ -402,7 +402,9 @@ export default function Recebiveis() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
-      return format(new Date(dateString), "dd/MM/yyyy", { locale: ptBR });
+      // Adiciona T12:00:00 para evitar problemas de timezone
+      const date = new Date(dateString + "T12:00:00");
+      return format(date, "dd/MM/yyyy", { locale: ptBR });
     } catch {
       return dateString;
     }
