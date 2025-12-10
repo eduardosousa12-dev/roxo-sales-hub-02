@@ -224,8 +224,10 @@ export default function Recebiveis() {
 
         combinedSales = combinedSales.filter(s => {
           if (!s.date) return false;
-          if (dateFromStr && s.date < dateFromStr) return false;
-          if (dateToStr && s.date > dateToStr) return false;
+          // Normalizar para YYYY-MM-DD (pode vir como ISO com timezone)
+          const saleDate = s.date.substring(0, 10);
+          if (dateFromStr && saleDate < dateFromStr) return false;
+          if (dateToStr && saleDate > dateToStr) return false;
           return true;
         });
       }
@@ -507,8 +509,10 @@ export default function Recebiveis() {
           }
 
           salesForMetrics = salesForMetrics.filter(s => {
-            const saleDate = s.date || s.created_at?.split('T')[0];
-            if (!saleDate) return false;
+            const rawSaleDate = s.date || s.created_at?.split('T')[0];
+            if (!rawSaleDate) return false;
+            // Normalizar para YYYY-MM-DD (pode vir como ISO com timezone)
+            const saleDate = rawSaleDate.substring(0, 10);
             if (dateFromStr && saleDate < dateFromStr) return false;
             if (dateToStr && saleDate > dateToStr) return false;
             return true;
