@@ -120,6 +120,7 @@ export default function Propostas() {
       const updateData: any = {
         deal_outcome: modalType === "Ganho" ? "Ganha" : "Perdida",
         sale_date: selectedDate,
+        date: selectedDate, // Atualiza também o campo date para exibir corretamente em Recebíveis
       };
 
       // Se for ganho, copiar proposal_value para sale_value
