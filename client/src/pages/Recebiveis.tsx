@@ -558,12 +558,25 @@ export default function Recebiveis() {
 
         // Filtrar pagamentos pelo período e agrupar por activity_id
         const paymentsByActivity = new Map<number, number>();
+
+        console.log("🔍 Debug filtro recebimentos:", {
+          paymentPeriod,
+          paymentDateFromStr,
+          paymentDateToStr,
+          totalPayments: paymentsData?.length
+        });
+
         (paymentsData || []).forEach(p => {
           if (p.activity_id) {
             // Aplicar filtro de período dos recebimentos
             if (paymentDateFromStr || paymentDateToStr) {
-              const paymentDate = p.data_pagamento;
-              if (!paymentDate) return;
+              // Normalizar data do pagamento para YYYY-MM-DD (pode vir como ISO com timezone)
+              const rawPaymentDate = p.data_pagamento;
+              if (!rawPaymentDate) return;
+
+              // Extrair apenas a parte da data (primeiros 10 caracteres: YYYY-MM-DD)
+              const paymentDate = rawPaymentDate.substring(0, 10);
+
               if (paymentDateFromStr && paymentDate < paymentDateFromStr) return;
               if (paymentDateToStr && paymentDate > paymentDateToStr) return;
             }
@@ -572,6 +585,8 @@ export default function Recebiveis() {
             paymentsByActivity.set(p.activity_id, current + (p.valor_pago || 0));
           }
         });
+
+        console.log("📊 Pagamentos após filtro:", paymentsByActivity.size, "atividades com pagamentos");
 
         let totalVendido = 0;
         let totalRecebido = 0;
