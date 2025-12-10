@@ -603,12 +603,22 @@ export default function Recebiveis() {
               : (activitiesData || []).filter(a => a.closer_id === selectedCloser).map(a => a.id)
           );
 
+          console.log("🔍 Debug filtro closer recebimentos:", {
+            selectedCloser,
+            totalActivities: activitiesData?.length,
+            allowedActivityIds: Array.from(allowedActivityIds).slice(0, 10),
+            paymentActivityIds: Array.from(paymentsByActivity.keys()),
+            paymentValues: Array.from(paymentsByActivity.entries())
+          });
+
           // Somar apenas pagamentos de atividades permitidas
           paymentsByActivity.forEach((valor, activityId) => {
             if (allowedActivityIds.has(activityId)) {
               totalRecebido += valor;
             }
           });
+
+          console.log("📊 totalRecebido após filtro:", totalRecebido);
         }
 
         salesForMetrics.forEach(sale => {
