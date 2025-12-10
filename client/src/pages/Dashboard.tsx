@@ -151,10 +151,11 @@ export default function Dashboard() {
       setLoading(true);
       console.log(`⏱️ [Request ${currentRequestId}] Iniciando query...`);
 
-      // Query simples e direta
-      const { data: activities, error } = await supabase
+      // Query simples e direta - aumentar limite do Supabase (default é 1000)
+      const { data: activities, error, count } = await supabase
         .from("activities")
-        .select("*");
+        .select("*", { count: "exact" })
+        .limit(10000);
 
       // Verificar se esta requisição ainda é válida
       if (currentRequestId !== requestIdRef.current) {
@@ -168,7 +169,7 @@ export default function Dashboard() {
         return;
       }
 
-      console.log(`📊 [Request ${currentRequestId}] Query retornou:`, { activities: activities?.length, error });
+      console.log(`📊 [Request ${currentRequestId}] Query retornou:`, { activities: activities?.length, totalCount: count, error });
 
       if (error) {
         console.error(`❌ [Request ${currentRequestId}] Erro ao carregar activities:`, error);
