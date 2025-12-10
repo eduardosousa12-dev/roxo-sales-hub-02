@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DollarSign, Calendar, X, Trash2 } from "lucide-react";
+import { DollarSign, Calendar, X, Trash2, Pencil, Check } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import MetricCard from "@/components/MetricCard";
@@ -61,6 +61,12 @@ export default function Recebiveis() {
   const [newPaymentDate, setNewPaymentDate] = useState(new Date().toISOString().split("T")[0]);
   const [newPaymentMethod, setNewPaymentMethod] = useState("Pix");
   const [savingPayment, setSavingPayment] = useState(false);
+
+  // Edição de data da venda
+  const [editingSaleDate, setEditingSaleDate] = useState(false);
+  const [newSaleDate, setNewSaleDate] = useState("");
+  const [savingSaleDate, setSavingSaleDate] = useState(false);
+  const [deletingSale, setDeletingSale] = useState(false);
 
   // Auto F5 se ficar carregando por mais de 3 segundos
   useEffect(() => {
@@ -226,6 +232,9 @@ export default function Recebiveis() {
     setNewPaymentValue("");
     setNewPaymentDate(new Date().toISOString().split("T")[0]);
     setNewPaymentMethod("Pix");
+    // Reset edição de data
+    setEditingSaleDate(false);
+    setNewSaleDate(sale.date || "");
   };
 
   const closePaymentModal = () => {
@@ -313,6 +322,72 @@ export default function Recebiveis() {
     } catch (error) {
       console.error("Error deleting payment:", error);
       toast.error("Erro ao excluir pagamento");
+    }
+  };
+
+  const updateSaleDate = async () => {
+    if (!selectedSale || !newSaleDate) return;
+
+    try {
+      setSavingSaleDate(true);
+      const { error } = await supabase
+        .from("activities")
+        .update({ sale_date: newSaleDate, date: newSaleDate })
+        .eq("id", selectedSale.id);
+
+      if (error) throw error;
+
+      toast.success("Data da venda atualizada");
+      setEditingSaleDate(false);
+
+      // Atualizar selectedSale localmente
+      setSelectedSale({
+        ...selectedSale,
+        date: newSaleDate,
+      });
+
+      // Recarregar lista
+      await loadSalesWithPayments();
+    } catch (error) {
+      console.error("Error updating sale date:", error);
+      toast.error("Erro ao atualizar data da venda");
+    } finally {
+      setSavingSaleDate(false);
+    }
+  };
+
+  const deleteSale = async () => {
+    if (!selectedSale) return;
+
+    const confirmDelete = window.confirm(
+      `Tem certeza que deseja apagar esta venda de ${selectedSale.lead || "Lead"}?\n\nIsso irá:\n- Remover a venda (zerar sale_value)\n- Manter os pagamentos registrados\n\nEsta ação não pode ser desfeita.`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      setDeletingSale(true);
+
+      // Atualizar a atividade para remover os dados de venda
+      const { error } = await supabase
+        .from("activities")
+        .update({
+          sale_value: null,
+          sale_date: null,
+          deal_outcome: "Em Aberto",
+        })
+        .eq("id", selectedSale.id);
+
+      if (error) throw error;
+
+      toast.success("Venda removida com sucesso");
+      closePaymentModal();
+      await loadSalesWithPayments();
+    } catch (error) {
+      console.error("Error deleting sale:", error);
+      toast.error("Erro ao remover venda");
+    } finally {
+      setDeletingSale(false);
     }
   };
 
@@ -560,6 +635,70 @@ export default function Recebiveis() {
 
           {selectedSale && (
             <div className="space-y-6">
+              {/* Ações da venda: Data e Apagar */}
+              <div className="flex items-center justify-between bg-card/30 rounded-lg p-3 border border-primary/10">
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-4 w-4 text-foreground/70" />
+                  {editingSaleDate ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={newSaleDate}
+                        onChange={(e) => setNewSaleDate(e.target.value)}
+                        className="w-40 h-8 bg-card/50 border-primary/20"
+                      />
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={updateSaleDate}
+                        disabled={savingSaleDate}
+                        className="h-8 px-2 text-green-400 hover:text-green-300"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingSaleDate(false);
+                          setNewSaleDate(selectedSale.date || "");
+                        }}
+                        className="h-8 px-2 text-foreground/50 hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm">
+                        Data da venda: <strong>{formatDate(selectedSale.date)}</strong>
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setEditingSaleDate(true);
+                          setNewSaleDate(selectedSale.date || "");
+                        }}
+                        className="h-6 px-2 text-foreground/50 hover:text-foreground"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={deleteSale}
+                  disabled={deletingSale}
+                  className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  {deletingSale ? "Apagando..." : "Apagar Venda"}
+                </Button>
+              </div>
+
               {/* Resumo da venda */}
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-card/50 rounded-lg p-4">
