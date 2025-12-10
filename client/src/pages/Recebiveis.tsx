@@ -459,7 +459,8 @@ export default function Recebiveis() {
       try {
         const { data: activitiesData } = await supabase
           .from("activities")
-          .select("id, sale_value, proposal_value, deal_outcome, closer_id, date, created_at");
+          .select("id, sale_value, proposal_value, deal_outcome, closer_id, date, created_at")
+          .limit(10000);
 
         // Filtrar: sale_value > 0 OU (deal_outcome ganho E proposal_value > 0)
         let salesForMetrics = (activitiesData || []).filter(a => {
