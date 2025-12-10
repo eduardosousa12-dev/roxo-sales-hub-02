@@ -186,6 +186,14 @@ export default function Recebiveis() {
         combinedSales = combinedSales.filter(s => s.closer_id === selectedCloser);
       }
 
+      // Função auxiliar para formatar data local (evitando problemas de timezone)
+      const formatDateLocal = (date: Date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
       // Filtro por período da venda
       if (salePeriod !== "todos" && salePeriod !== "maximo") {
         const now = new Date();
@@ -194,12 +202,14 @@ export default function Recebiveis() {
 
         if (salePeriod === "esse_mes") {
           // Primeiro dia do mês atual
-          dateFromStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-          dateToStr = now.toISOString().split('T')[0];
+          dateFromStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+          dateToStr = formatDateLocal(now);
         } else if (salePeriod === "mes_passado") {
           // Primeiro e último dia do mês passado
-          dateFromStr = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-          dateToStr = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+          dateFromStr = formatDateLocal(lastMonth);
+          dateToStr = formatDateLocal(lastDayOfLastMonth);
         } else if (salePeriod === "personalizado") {
           dateFromStr = customStartDate;
           dateToStr = customEndDate;
@@ -208,8 +218,8 @@ export default function Recebiveis() {
           const daysAgo = parseInt(salePeriod);
           const dateFrom = new Date();
           dateFrom.setDate(dateFrom.getDate() - daysAgo);
-          dateFromStr = dateFrom.toISOString().split('T')[0];
-          dateToStr = now.toISOString().split('T')[0];
+          dateFromStr = formatDateLocal(dateFrom);
+          dateToStr = formatDateLocal(now);
         }
 
         combinedSales = combinedSales.filter(s => {
@@ -463,18 +473,28 @@ export default function Recebiveis() {
           salesForMetrics = salesForMetrics.filter(s => s.closer_id === selectedCloser);
         }
 
-        // Filtro por período da venda
+        // Função auxiliar para formatar data local
+        const formatDateLocal = (date: Date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
+        // Filtro por período da venda (evitando problemas de timezone)
         if (salePeriod !== "todos" && salePeriod !== "maximo") {
           const now = new Date();
           let dateFromStr = "";
           let dateToStr = "";
 
           if (salePeriod === "esse_mes") {
-            dateFromStr = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-            dateToStr = now.toISOString().split('T')[0];
+            dateFromStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+            dateToStr = formatDateLocal(now);
           } else if (salePeriod === "mes_passado") {
-            dateFromStr = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
-            dateToStr = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
+            const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+            dateFromStr = formatDateLocal(lastMonth);
+            dateToStr = formatDateLocal(lastDayOfLastMonth);
           } else if (salePeriod === "personalizado") {
             dateFromStr = customStartDate;
             dateToStr = customEndDate;
@@ -482,8 +502,8 @@ export default function Recebiveis() {
             const daysAgo = parseInt(salePeriod);
             const dateFrom = new Date();
             dateFrom.setDate(dateFrom.getDate() - daysAgo);
-            dateFromStr = dateFrom.toISOString().split('T')[0];
-            dateToStr = now.toISOString().split('T')[0];
+            dateFromStr = formatDateLocal(dateFrom);
+            dateToStr = formatDateLocal(now);
           }
 
           salesForMetrics = salesForMetrics.filter(s => {
@@ -499,27 +519,40 @@ export default function Recebiveis() {
           .from("payments")
           .select("activity_id, valor_pago, data_pagamento");
 
-        // Calcular datas de filtro para recebimentos
+        // Calcular datas de filtro para recebimentos (evitando problemas de timezone)
         let paymentDateFromStr = "";
         let paymentDateToStr = "";
         const nowPayment = new Date();
 
+        // Função auxiliar para formatar data em YYYY-MM-DD sem problemas de timezone
+        const formatLocalDate = (date: Date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+
         if (paymentPeriod !== "todos" && paymentPeriod !== "maximo") {
           if (paymentPeriod === "esse_mes") {
-            paymentDateFromStr = new Date(nowPayment.getFullYear(), nowPayment.getMonth(), 1).toISOString().split('T')[0];
-            paymentDateToStr = nowPayment.toISOString().split('T')[0];
+            // Primeiro dia do mês atual
+            paymentDateFromStr = `${nowPayment.getFullYear()}-${String(nowPayment.getMonth() + 1).padStart(2, '0')}-01`;
+            paymentDateToStr = formatLocalDate(nowPayment);
           } else if (paymentPeriod === "mes_passado") {
-            paymentDateFromStr = new Date(nowPayment.getFullYear(), nowPayment.getMonth() - 1, 1).toISOString().split('T')[0];
-            paymentDateToStr = new Date(nowPayment.getFullYear(), nowPayment.getMonth(), 0).toISOString().split('T')[0];
+            // Mês passado
+            const lastMonth = new Date(nowPayment.getFullYear(), nowPayment.getMonth() - 1, 1);
+            const lastDayOfLastMonth = new Date(nowPayment.getFullYear(), nowPayment.getMonth(), 0);
+            paymentDateFromStr = formatLocalDate(lastMonth);
+            paymentDateToStr = formatLocalDate(lastDayOfLastMonth);
           } else if (paymentPeriod === "personalizado") {
             paymentDateFromStr = paymentCustomStartDate;
             paymentDateToStr = paymentCustomEndDate;
           } else {
+            // Filtro por dias (7, 30, 90)
             const daysAgo = parseInt(paymentPeriod);
             const dateFrom = new Date();
             dateFrom.setDate(dateFrom.getDate() - daysAgo);
-            paymentDateFromStr = dateFrom.toISOString().split('T')[0];
-            paymentDateToStr = nowPayment.toISOString().split('T')[0];
+            paymentDateFromStr = formatLocalDate(dateFrom);
+            paymentDateToStr = formatLocalDate(nowPayment);
           }
         }
 
