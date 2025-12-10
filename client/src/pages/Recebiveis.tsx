@@ -604,17 +604,24 @@ export default function Recebiveis() {
               : (activitiesData || []).filter(a => a.closer_id === selectedCloser).map(a => a.id)
           );
 
+          const paymentIds = Array.from(paymentsByActivity.keys());
+          const matchingIds = paymentIds.filter(id => allowedActivityIds.has(id));
+
           console.log("🔍 Debug filtro closer recebimentos:", {
             selectedCloser,
             totalActivities: activitiesData?.length,
-            allowedActivityIds: Array.from(allowedActivityIds).slice(0, 10),
-            paymentActivityIds: Array.from(paymentsByActivity.keys()),
-            paymentValues: Array.from(paymentsByActivity.entries())
+            allowedActivityIdsCount: allowedActivityIds.size,
+            paymentActivityIds: paymentIds,
+            paymentValues: Array.from(paymentsByActivity.entries()),
+            matchingIds: matchingIds,
+            hasMatch: matchingIds.length > 0
           });
 
           // Somar apenas pagamentos de atividades permitidas
           paymentsByActivity.forEach((valor, activityId) => {
-            if (allowedActivityIds.has(activityId)) {
+            const isAllowed = allowedActivityIds.has(activityId);
+            console.log(`  Pagamento activity_id=${activityId}, valor=${valor}, permitido=${isAllowed}`);
+            if (isAllowed) {
               totalRecebido += valor;
             }
           });
