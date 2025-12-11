@@ -451,86 +451,31 @@ export default function Recebiveis() {
     }
   };
 
-  // Para métricas, precisamos recalcular sem o filtro de status
+  // Calcular métricas a partir do estado sales + filtro de período de recebimentos
   const [metricsData, setMetricsData] = useState({ totalVendido: 0, totalRecebido: 0, saldoPendente: 0 });
 
   useEffect(() => {
-    const loadMetrics = async () => {
-      try {
-        const { data: activitiesData } = await supabase
-          .from("activities")
-          .select("id, sale_value, proposal_value, deal_outcome, closer_id, date, created_at")
-          .limit(10000);
+    const calculateMetrics = async () => {
+      // Total vendido vem direto das vendas filtradas
+      let totalVendido = 0;
+      sales.forEach(sale => {
+        totalVendido += sale.sale_value;
+      });
 
-        // Filtrar: sale_value > 0 OU (deal_outcome ganho E proposal_value > 0)
-        let salesForMetrics = (activitiesData || []).filter(a => {
-          if (a.sale_value && a.sale_value > 0) return true;
-          const outcome = (a.deal_outcome || "").toLowerCase();
-          if ((outcome === "ganha" || outcome === "ganho") && a.proposal_value && a.proposal_value > 0) {
-            return true;
-          }
-          return false;
+      let totalRecebido = 0;
+
+      // Se NÃO há filtro de período de recebimento, usar os dados de sales
+      if (paymentPeriod === "todos" || paymentPeriod === "maximo") {
+        sales.forEach(sale => {
+          totalRecebido += sale.total_paid;
         });
-
-        if (selectedCloser !== "todos") {
-          salesForMetrics = salesForMetrics.filter(s => s.closer_id === selectedCloser);
-        }
-
-        // Função auxiliar para formatar data local
-        const formatDateLocal = (date: Date) => {
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          return `${year}-${month}-${day}`;
-        };
-
-        // Filtro por período da venda (evitando problemas de timezone)
-        if (salePeriod !== "todos" && salePeriod !== "maximo") {
-          const now = new Date();
-          let dateFromStr = "";
-          let dateToStr = "";
-
-          if (salePeriod === "esse_mes") {
-            dateFromStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-            dateToStr = formatDateLocal(now);
-          } else if (salePeriod === "mes_passado") {
-            const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-            const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
-            dateFromStr = formatDateLocal(lastMonth);
-            dateToStr = formatDateLocal(lastDayOfLastMonth);
-          } else if (salePeriod === "personalizado") {
-            dateFromStr = customStartDate;
-            dateToStr = customEndDate;
-          } else {
-            const daysAgo = parseInt(salePeriod);
-            const dateFrom = new Date();
-            dateFrom.setDate(dateFrom.getDate() - daysAgo);
-            dateFromStr = formatDateLocal(dateFrom);
-            dateToStr = formatDateLocal(now);
-          }
-
-          salesForMetrics = salesForMetrics.filter(s => {
-            const rawSaleDate = s.date || s.created_at?.split('T')[0];
-            if (!rawSaleDate) return false;
-            // Normalizar para YYYY-MM-DD (pode vir como ISO com timezone)
-            const saleDate = rawSaleDate.substring(0, 10);
-            if (dateFromStr && saleDate < dateFromStr) return false;
-            if (dateToStr && saleDate > dateToStr) return false;
-            return true;
-          });
-        }
-
-        // Buscar pagamentos COM o closer_id da atividade relacionada
+      } else {
+        // Se há filtro de período de recebimento, buscar pagamentos e filtrar por data
         const { data: paymentsData } = await supabase
           .from("payments")
           .select("activity_id, valor_pago, data_pagamento, activities(closer_id)");
 
-        // Calcular datas de filtro para recebimentos (evitando problemas de timezone)
-        let paymentDateFromStr = "";
-        let paymentDateToStr = "";
-        const nowPayment = new Date();
-
-        // Função auxiliar para formatar data em YYYY-MM-DD sem problemas de timezone
+        // Calcular datas de filtro para recebimentos
         const formatLocalDate = (date: Date) => {
           const year = date.getFullYear();
           const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -538,121 +483,61 @@ export default function Recebiveis() {
           return `${year}-${month}-${day}`;
         };
 
-        if (paymentPeriod !== "todos" && paymentPeriod !== "maximo") {
-          if (paymentPeriod === "esse_mes") {
-            // Primeiro dia do mês atual
-            paymentDateFromStr = `${nowPayment.getFullYear()}-${String(nowPayment.getMonth() + 1).padStart(2, '0')}-01`;
-            paymentDateToStr = formatLocalDate(nowPayment);
-          } else if (paymentPeriod === "mes_passado") {
-            // Mês passado
-            const lastMonth = new Date(nowPayment.getFullYear(), nowPayment.getMonth() - 1, 1);
-            const lastDayOfLastMonth = new Date(nowPayment.getFullYear(), nowPayment.getMonth(), 0);
-            paymentDateFromStr = formatLocalDate(lastMonth);
-            paymentDateToStr = formatLocalDate(lastDayOfLastMonth);
-          } else if (paymentPeriod === "personalizado") {
-            paymentDateFromStr = paymentCustomStartDate;
-            paymentDateToStr = paymentCustomEndDate;
-          } else {
-            // Filtro por dias (7, 30, 90)
-            const daysAgo = parseInt(paymentPeriod);
-            const dateFrom = new Date();
-            dateFrom.setDate(dateFrom.getDate() - daysAgo);
-            paymentDateFromStr = formatLocalDate(dateFrom);
-            paymentDateToStr = formatLocalDate(nowPayment);
-          }
+        const now = new Date();
+        let paymentDateFromStr = "";
+        let paymentDateToStr = "";
+
+        if (paymentPeriod === "esse_mes") {
+          paymentDateFromStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+          paymentDateToStr = formatLocalDate(now);
+        } else if (paymentPeriod === "mes_passado") {
+          const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+          const lastDayOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+          paymentDateFromStr = formatLocalDate(lastMonth);
+          paymentDateToStr = formatLocalDate(lastDayOfLastMonth);
+        } else if (paymentPeriod === "personalizado") {
+          paymentDateFromStr = paymentCustomStartDate;
+          paymentDateToStr = paymentCustomEndDate;
+        } else {
+          const daysAgo = parseInt(paymentPeriod);
+          const dateFrom = new Date();
+          dateFrom.setDate(dateFrom.getDate() - daysAgo);
+          paymentDateFromStr = formatLocalDate(dateFrom);
+          paymentDateToStr = formatLocalDate(now);
         }
 
-        // Filtrar pagamentos pelo período e agrupar por activity_id
-        // paymentsByActivity: usado para calcular saldo devedor das vendas (sem filtro de período)
-        // totalRecebidoPeriodo: soma dos pagamentos no período + closer selecionado
-        const paymentsByActivity = new Map<number, number>();
-        let totalRecebidoPeriodo = 0;
+        // IDs das vendas que estão na tabela (já filtradas)
+        const saleIds = new Set(sales.map(s => s.id));
 
+        // Filtrar pagamentos pelo período e somar apenas os das vendas visíveis
         (paymentsData || []).forEach(p => {
-          if (p.activity_id) {
-            // Obter o closer_id da atividade relacionada (vem do join)
+          if (p.activity_id && saleIds.has(p.activity_id)) {
             const paymentCloserId = (p.activities as { closer_id: string | null } | null)?.closer_id;
-
-            // Verificar se o pagamento passa no filtro de período
-            let passaPeriodo = true;
-            if (paymentDateFromStr || paymentDateToStr) {
-              const rawPaymentDate = p.data_pagamento;
-
-              // Se pagamento não tem data, NÃO incluir quando há filtro ativo
-              if (!rawPaymentDate) {
-                passaPeriodo = false;
-              } else {
-                // Normalizar data do pagamento para YYYY-MM-DD
-                const paymentDate = rawPaymentDate.substring(0, 10);
-
-                if (paymentDateFromStr && paymentDate < paymentDateFromStr) {
-                  passaPeriodo = false;
-                }
-                if (paymentDateToStr && paymentDate > paymentDateToStr) {
-                  passaPeriodo = false;
-                }
-              }
-            }
-
-            // Verificar se o pagamento passa no filtro de closer
             const passaCloser = selectedCloser === "todos" || paymentCloserId === selectedCloser;
 
-            // Sempre adicionar ao mapa para calcular saldo devedor (sem filtro de período)
-            // mas só se passar no filtro de closer
-            if (passaCloser) {
-              const current = paymentsByActivity.get(p.activity_id) || 0;
-              paymentsByActivity.set(p.activity_id, current + (p.valor_pago || 0));
-            }
+            if (!passaCloser) return;
 
-            // Somar no totalRecebidoPeriodo apenas se passar em AMBOS os filtros
-            if (passaPeriodo && passaCloser && (paymentPeriod !== "todos" && paymentPeriod !== "maximo")) {
-              totalRecebidoPeriodo += (p.valor_pago || 0);
-            }
+            const rawPaymentDate = p.data_pagamento;
+            if (!rawPaymentDate) return;
+
+            const paymentDate = rawPaymentDate.substring(0, 10);
+            if (paymentDateFromStr && paymentDate < paymentDateFromStr) return;
+            if (paymentDateToStr && paymentDate > paymentDateToStr) return;
+
+            totalRecebido += (p.valor_pago || 0);
           }
         });
-
-        let totalVendido = 0;
-        let totalRecebido = 0;
-
-        // Se há filtro de período de recebimento, usar o valor já calculado
-        if (paymentPeriod !== "todos" && paymentPeriod !== "maximo") {
-          totalRecebido = totalRecebidoPeriodo;
-        }
-
-        salesForMetrics.forEach(sale => {
-          // Usar sale_value se existir, senão usar proposal_value
-          const saleValue = sale.sale_value || sale.proposal_value || 0;
-          const paid = paymentsByActivity.get(sale.id) || 0;
-          const saldoDevedor = saleValue - paid;
-          const status = saldoDevedor <= 0 ? "Pago" : "Pendente";
-
-          // Aplicar filtro de status
-          if (selectedStatus !== "todos") {
-            const statusFilter = selectedStatus === "pendente" ? "Pendente" : "Pago";
-            if (status !== statusFilter) return;
-          }
-
-          totalVendido += saleValue;
-          // Se NÃO há filtro de período de recebimento, calcular totalRecebido baseado nas vendas
-          if (paymentPeriod === "todos" || paymentPeriod === "maximo") {
-            totalRecebido += paid;
-          }
-        });
-
-        setMetricsData({
-          totalVendido,
-          totalRecebido,
-          saldoPendente: totalVendido - totalRecebido,
-        });
-      } catch (error) {
-        console.error("Error loading metrics:", error);
       }
+
+      setMetricsData({
+        totalVendido,
+        totalRecebido,
+        saldoPendente: totalVendido - totalRecebido,
+      });
     };
 
-    if (!authLoading && user) {
-      loadMetrics();
-    }
-  }, [selectedCloser, salePeriod, selectedStatus, customStartDate, customEndDate, paymentPeriod, paymentCustomStartDate, paymentCustomEndDate, authLoading, user]);
+    calculateMetrics();
+  }, [sales, paymentPeriod, paymentCustomStartDate, paymentCustomEndDate, selectedCloser]);
 
   return (
     <div className="space-y-6">
