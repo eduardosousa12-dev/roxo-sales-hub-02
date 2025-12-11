@@ -164,22 +164,25 @@ export default function Propostas() {
         <p className="text-foreground/80">Converta propostas em vendas ou perdas</p>
       </div>
 
-      <div className="flex gap-4">
-        <Select value={selectedCloser} onValueChange={setSelectedCloser}>
-          <SelectTrigger className="w-[200px] border-primary/20">
-            <SelectValue placeholder="Closer" />
-          </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Usuários</SelectItem>
-                {profiles
-                  .filter(profile => profile.full_name && profile.full_name.trim() !== "")
-                  .map((profile) => (
-                    <SelectItem key={profile.id} value={profile.id}>
-                      {profile.full_name}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-        </Select>
+      <div className="flex gap-6 flex-wrap items-end">
+        <div className="space-y-2">
+          <span className="block text-sm font-medium text-white">Closer</span>
+          <Select value={selectedCloser} onValueChange={setSelectedCloser}>
+            <SelectTrigger className="w-[200px] border-primary/20">
+              <SelectValue placeholder="Closer" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os Usuários</SelectItem>
+              {profiles
+                .filter(profile => profile.full_name && profile.full_name.trim() !== "")
+                .map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.full_name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="space-y-4">

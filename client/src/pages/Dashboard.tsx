@@ -151,11 +151,16 @@ export default function Dashboard() {
       setLoading(true);
       console.log(`⏱️ [Request ${currentRequestId}] Iniciando query...`);
 
-      // Query simples e direta - aumentar limite do Supabase (default é 1000)
-      const { data: activities, error, count } = await supabase
+      // Query para buscar dados - usar range para evitar limite de 1000
+      const { data: activities, error } = await supabase
         .from("activities")
-        .select("*", { count: "exact" })
-        .limit(10000);
+        .select("*")
+        .range(0, 49999);
+
+      // Query separada para contar total (sem limite)
+      const { count: totalCount } = await supabase
+        .from("activities")
+        .select("*", { count: "exact", head: true });
 
       // Verificar se esta requisição ainda é válida
       if (currentRequestId !== requestIdRef.current) {
@@ -169,7 +174,7 @@ export default function Dashboard() {
         return;
       }
 
-      console.log(`📊 [Request ${currentRequestId}] Query retornou:`, { activities: activities?.length, totalCount: count, error });
+      console.log(`📊 [Request ${currentRequestId}] Query retornou:`, { activities: activities?.length, totalCount, error });
 
       if (error) {
         console.error(`❌ [Request ${currentRequestId}] Erro ao carregar activities:`, error);
@@ -319,6 +324,28 @@ export default function Dashboard() {
       const desqualificadas = filteredActivities.filter(a => a.qualification === "Não Qualificado" || a.qualification === "Unqualified") || [];
       const reunioesResgatadas = filteredActivities.filter(a => a.reuniao_resgatada === "Sim" || a.reuniao_resgatada === "Yes") || [];
 
+      // Leads em Atendimento: leads únicos que NÃO têm deal_outcome ganha ou perdida
+      const leadsEmAtendimento = new Set(
+        filteredActivities
+          .filter(a => {
+            const outcome = (a.deal_outcome || "").toLowerCase().trim();
+            // Excluir ganhas e perdidas
+            const isGanha = outcome === "ganha" || outcome.includes("ganho") || outcome.includes("won");
+            const isPerdida = outcome === "perdida" || outcome === "perda" || outcome.includes("perdido") || outcome.includes("lost");
+            return !isGanha && !isPerdida && a.lead; // Deve ter um lead definido
+          })
+          .map(a => a.lead)
+      ).size;
+
+      // Total de Reuniões: atividades com type R1, R2, R3, R4 ou R5
+      const totalReunioes = filteredActivities.filter(a => {
+        const type = (a.type || "").toUpperCase();
+        return type === "R1" || type === "R2" || type === "R3" || type === "R4" || type === "R5";
+      }).length;
+
+      console.log(`👥 Leads em Atendimento: ${leadsEmAtendimento}`);
+      console.log(`📅 Total de Reuniões (R1-R5): ${totalReunioes}`);
+
       // Performance por canal
       const canais = ["Inbound", "Outbound", "Webinar", "Vanguarda"];
       const perfCanal = canais.map(canal => {
@@ -407,8 +434,8 @@ export default function Dashboard() {
         valorTotalVendido,
         negociosGanhos: activitiesWon.length,
         propostasEnviadas: activitiesWithProposals.length,
-        leadsAtendimento: filteredActivities.length,
-        totalReunioes: filteredActivities.length,
+        leadsAtendimento: leadsEmAtendimento,
+        totalReunioes: totalReunioes,
         reunioesRealizadas: reunioesRealizadas.length,
         valorPropostaAberto,
         qualificadas: qualificadas.length,
@@ -462,50 +489,59 @@ export default function Dashboard() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 flex-wrap">
-        <Select value={selectedUser} onValueChange={setSelectedUser}>
-          <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-user">
-            <SelectValue placeholder="Closer" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Usuários</SelectItem>
-            {profiles
-              .filter(profile => profile.full_name && profile.full_name.trim() !== "")
-              .map((profile) => (
-                <SelectItem key={profile.id} value={profile.id}>
-                  {profile.full_name}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-        
-        <Select value={selectedChannel} onValueChange={setSelectedChannel}>
-          <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-channel">
-            <SelectValue placeholder="Canal" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Canais</SelectItem>
-            <SelectItem value="Inbound">Inbound</SelectItem>
-            <SelectItem value="Outbound">Outbound</SelectItem>
-            <SelectItem value="Webinar">Webinar</SelectItem>
-            <SelectItem value="Vanguarda">Vanguarda</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
-          <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-period">
-            <SelectValue placeholder="Período" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Máximo</SelectItem>
-            <SelectItem value="esse_mes">Esse mês</SelectItem>
-            <SelectItem value="mes_passado">Mês passado</SelectItem>
-            <SelectItem value="7">Últimos 7 dias</SelectItem>
-            <SelectItem value="30">Últimos 30 dias</SelectItem>
-            <SelectItem value="90">Últimos 90 dias</SelectItem>
-            <SelectItem value="personalizado">Personalizado</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex gap-6 flex-wrap items-end">
+        <div className="space-y-2">
+          <span className="block text-sm font-medium text-white">Closer</span>
+          <Select value={selectedUser} onValueChange={setSelectedUser}>
+            <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-user">
+              <SelectValue placeholder="Closer" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os Usuários</SelectItem>
+              {profiles
+                .filter(profile => profile.full_name && profile.full_name.trim() !== "")
+                .map((profile) => (
+                  <SelectItem key={profile.id} value={profile.id}>
+                    {profile.full_name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <span className="block text-sm font-medium text-white">Canal</span>
+          <Select value={selectedChannel} onValueChange={setSelectedChannel}>
+            <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-channel">
+              <SelectValue placeholder="Canal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos os Canais</SelectItem>
+              <SelectItem value="Inbound">Inbound</SelectItem>
+              <SelectItem value="Outbound">Outbound</SelectItem>
+              <SelectItem value="Webinar">Webinar</SelectItem>
+              <SelectItem value="Vanguarda">Vanguarda</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <span className="block text-sm font-medium text-white">Período</span>
+          <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+            <SelectTrigger className="w-[200px] border-primary/20" data-testid="select-period">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Máximo</SelectItem>
+              <SelectItem value="esse_mes">Esse mês</SelectItem>
+              <SelectItem value="mes_passado">Mês passado</SelectItem>
+              <SelectItem value="7">Últimos 7 dias</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="personalizado">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
         {selectedPeriod === "personalizado" && (
           <div className="flex gap-2 items-center">

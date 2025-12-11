@@ -520,9 +520,10 @@ export default function Recebiveis() {
           });
         }
 
+        // Buscar pagamentos COM o closer_id da atividade relacionada
         const { data: paymentsData } = await supabase
           .from("payments")
-          .select("activity_id, valor_pago, data_pagamento");
+          .select("activity_id, valor_pago, data_pagamento, activities(closer_id)");
 
         // Calcular datas de filtro para recebimentos (evitando problemas de timezone)
         let paymentDateFromStr = "";
@@ -562,71 +563,60 @@ export default function Recebiveis() {
         }
 
         // Filtrar pagamentos pelo período e agrupar por activity_id
+        // paymentsByActivity: usado para calcular saldo devedor das vendas (sem filtro de período)
+        // totalRecebidoPeriodo: soma dos pagamentos no período + closer selecionado
         const paymentsByActivity = new Map<number, number>();
+        let totalRecebidoPeriodo = 0;
 
         (paymentsData || []).forEach(p => {
           if (p.activity_id) {
-            // Aplicar filtro de período dos recebimentos
+            // Obter o closer_id da atividade relacionada (vem do join)
+            const paymentCloserId = (p.activities as { closer_id: string | null } | null)?.closer_id;
+
+            // Verificar se o pagamento passa no filtro de período
+            let passaPeriodo = true;
             if (paymentDateFromStr || paymentDateToStr) {
               const rawPaymentDate = p.data_pagamento;
 
               // Se pagamento não tem data, NÃO incluir quando há filtro ativo
               if (!rawPaymentDate) {
-                return;
-              }
+                passaPeriodo = false;
+              } else {
+                // Normalizar data do pagamento para YYYY-MM-DD
+                const paymentDate = rawPaymentDate.substring(0, 10);
 
-              // Normalizar data do pagamento para YYYY-MM-DD
-              const paymentDate = rawPaymentDate.substring(0, 10);
-
-              if (paymentDateFromStr && paymentDate < paymentDateFromStr) {
-                return;
-              }
-              if (paymentDateToStr && paymentDate > paymentDateToStr) {
-                return;
+                if (paymentDateFromStr && paymentDate < paymentDateFromStr) {
+                  passaPeriodo = false;
+                }
+                if (paymentDateToStr && paymentDate > paymentDateToStr) {
+                  passaPeriodo = false;
+                }
               }
             }
 
-            const current = paymentsByActivity.get(p.activity_id) || 0;
-            paymentsByActivity.set(p.activity_id, current + (p.valor_pago || 0));
+            // Verificar se o pagamento passa no filtro de closer
+            const passaCloser = selectedCloser === "todos" || paymentCloserId === selectedCloser;
+
+            // Sempre adicionar ao mapa para calcular saldo devedor (sem filtro de período)
+            // mas só se passar no filtro de closer
+            if (passaCloser) {
+              const current = paymentsByActivity.get(p.activity_id) || 0;
+              paymentsByActivity.set(p.activity_id, current + (p.valor_pago || 0));
+            }
+
+            // Somar no totalRecebidoPeriodo apenas se passar em AMBOS os filtros
+            if (passaPeriodo && passaCloser && (paymentPeriod !== "todos" && paymentPeriod !== "maximo")) {
+              totalRecebidoPeriodo += (p.valor_pago || 0);
+            }
           }
         });
 
         let totalVendido = 0;
         let totalRecebido = 0;
 
-        // Calcular totalRecebido diretamente dos pagamentos filtrados por período
-        // MAS apenas para atividades do closer selecionado
+        // Se há filtro de período de recebimento, usar o valor já calculado
         if (paymentPeriod !== "todos" && paymentPeriod !== "maximo") {
-          // Criar set de IDs de atividades do closer selecionado (ou todas se "todos")
-          const allowedActivityIds = new Set(
-            selectedCloser === "todos"
-              ? (activitiesData || []).map(a => a.id)
-              : (activitiesData || []).filter(a => a.closer_id === selectedCloser).map(a => a.id)
-          );
-
-          const paymentIds = Array.from(paymentsByActivity.keys());
-          const matchingIds = paymentIds.filter(id => allowedActivityIds.has(id));
-
-          console.log("🔍 Debug filtro closer recebimentos:", {
-            selectedCloser,
-            totalActivities: activitiesData?.length,
-            allowedActivityIdsCount: allowedActivityIds.size,
-            paymentActivityIds: paymentIds,
-            paymentValues: Array.from(paymentsByActivity.entries()),
-            matchingIds: matchingIds,
-            hasMatch: matchingIds.length > 0
-          });
-
-          // Somar apenas pagamentos de atividades permitidas
-          paymentsByActivity.forEach((valor, activityId) => {
-            const isAllowed = allowedActivityIds.has(activityId);
-            console.log(`  Pagamento activity_id=${activityId}, valor=${valor}, permitido=${isAllowed}`);
-            if (isAllowed) {
-              totalRecebido += valor;
-            }
-          });
-
-          console.log("📊 totalRecebido após filtro:", totalRecebido);
+          totalRecebido = totalRecebidoPeriodo;
         }
 
         salesForMetrics.forEach(sale => {

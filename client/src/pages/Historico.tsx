@@ -505,93 +505,115 @@ export default function Historico() {
                 Limpar Filtros
               </Button>
             </div>
-            <Select value={channelFilter} onValueChange={setChannelFilter}>
-              <SelectTrigger className="border-primary/20" data-testid="select-channel">
-                <SelectValue placeholder="Canal" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Canais</SelectItem>
-                {uniqueChannels.map(channel => (
-                  <SelectItem key={channel} value={channel}>{channel}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
 
-            <Select value={periodFilter} onValueChange={setPeriodFilter}>
-              <SelectTrigger className="border-primary/20" data-testid="select-period">
-                <SelectValue placeholder="Período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todo o período</SelectItem>
-                <SelectItem value="7">Últimos 7 dias</SelectItem>
-                <SelectItem value="30">Últimos 30 dias</SelectItem>
-                <SelectItem value="90">Últimos 90 dias</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={closerFilter} onValueChange={setCloserFilter}>
-              <SelectTrigger className="border-primary/20" data-testid="select-closer-filter">
-                <SelectValue placeholder="Closer" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Closers</SelectItem>
-                {profiles
-                  .filter(profile => profile.full_name && profile.full_name.trim() !== "")
-                  .map(profile => (
-                    <SelectItem key={profile.id} value={profile.full_name!}>
-                      {profile.full_name}
-                    </SelectItem>
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-white">Canal</span>
+              <Select value={channelFilter} onValueChange={setChannelFilter}>
+                <SelectTrigger className="border-primary/20" data-testid="select-channel">
+                  <SelectValue placeholder="Canal" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os Canais</SelectItem>
+                  {uniqueChannels.map(channel => (
+                    <SelectItem key={channel} value={channel}>{channel}</SelectItem>
                   ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={bdrFilter} onValueChange={setBdrFilter}>
-              <SelectTrigger className="border-primary/20" data-testid="select-bdr-filter">
-                <SelectValue placeholder="BDR" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os BDRs</SelectItem>
-                {uniqueBdrs.map(bdr => (
-                  <SelectItem key={bdr} value={bdr}>{bdr}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-white">Período</span>
+              <Select value={periodFilter} onValueChange={setPeriodFilter}>
+                <SelectTrigger className="border-primary/20" data-testid="select-period">
+                  <SelectValue placeholder="Período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todo o período</SelectItem>
+                  <SelectItem value="7">Últimos 7 dias</SelectItem>
+                  <SelectItem value="30">Últimos 30 dias</SelectItem>
+                  <SelectItem value="90">Últimos 90 dias</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="border-primary/20" data-testid="select-status">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Status</SelectItem>
-                {statusOptions.map(opt => (
-                  <SelectItem key={opt.normalized} value={opt.value}>{opt.value}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-white">Closer</span>
+              <Select value={closerFilter} onValueChange={setCloserFilter}>
+                <SelectTrigger className="border-primary/20" data-testid="select-closer-filter">
+                  <SelectValue placeholder="Closer" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os Closers</SelectItem>
+                  {profiles
+                    .filter(profile => profile.full_name && profile.full_name.trim() !== "")
+                    .map(profile => (
+                      <SelectItem key={profile.id} value={profile.full_name!}>
+                        {profile.full_name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={qualificationFilter} onValueChange={setQualificationFilter}>
-              <SelectTrigger className="border-primary/20" data-testid="select-qualification">
-                <SelectValue placeholder="Qualificação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas</SelectItem>
-                {uniqueQualifications.map(qual => (
-                  <SelectItem key={qual} value={qual}>{qual}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-white">BDR</span>
+              <Select value={bdrFilter} onValueChange={setBdrFilter}>
+                <SelectTrigger className="border-primary/20" data-testid="select-bdr-filter">
+                  <SelectValue placeholder="BDR" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os BDRs</SelectItem>
+                  {uniqueBdrs.map(bdr => (
+                    <SelectItem key={bdr} value={bdr}>{bdr}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            <Select value={outcomeFilter} onValueChange={setOutcomeFilter}>
-              <SelectTrigger className="border-primary/20" data-testid="select-outcome">
-                <SelectValue placeholder="Resultado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                {uniqueOutcomes.map(outcome => (
-                  <SelectItem key={outcome} value={outcome}>{outcome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-white">Status</span>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="border-primary/20" data-testid="select-status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos os Status</SelectItem>
+                  {statusOptions.map(opt => (
+                    <SelectItem key={opt.normalized} value={opt.value}>{opt.value}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-white">Qualificação</span>
+              <Select value={qualificationFilter} onValueChange={setQualificationFilter}>
+                <SelectTrigger className="border-primary/20" data-testid="select-qualification">
+                  <SelectValue placeholder="Qualificação" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todas</SelectItem>
+                  {uniqueQualifications.map(qual => (
+                    <SelectItem key={qual} value={qual}>{qual}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <span className="block text-sm font-medium text-white">Resultado</span>
+              <Select value={outcomeFilter} onValueChange={setOutcomeFilter}>
+                <SelectTrigger className="border-primary/20" data-testid="select-outcome">
+                  <SelectValue placeholder="Resultado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos</SelectItem>
+                  {uniqueOutcomes.map(outcome => (
+                    <SelectItem key={outcome} value={outcome}>{outcome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
